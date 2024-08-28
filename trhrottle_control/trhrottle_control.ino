@@ -19,11 +19,11 @@ int32_t absoluteAxis = 200;           //absolute coordinates
 
 //throttle potenciometers
 int potPin = A0;
-int potVal = 0;
-int inputResMin = 411;
-int inputResMax = 549;
+float potVal = 0;
+int inputResMin = 516;
+int inputResMax = 938;
 
-int throttlePercent = 0;
+float throttlePercent = 0;
 
 
 
@@ -44,21 +44,31 @@ void loop() {
   bool ackStatus = true;
   // put your main code here, to run repeatedly:
   
-  readRealTimeLocation(1); 
-  ackStatus = waitingForACK(10);  
+  //readRealTimeLocation(1); 
+  //ackStatus = waitingForACK(10);  
 
-
-
+  //positionMode3Run(1,500,0, (throttlePercent/1000)*4125); 
+  // 4125 
+  // 8250 = 180 
+  //1 degree = 45.83
   //positionMode3Run(1,100,200,absoluteAxis); //Slave address=1, speed=100RPM, acceleration=200, absolute coordinates
 
   //calc potencimeter percent
   potVal = analogRead(potPin);
-  throttlePercent = map(potVal, inputResMin, inputResMax, 0, 100);
+  throttlePercent = map(potVal, inputResMin, inputResMax, 0, 4125);
 
+  if(throttlePercent>0){
+    positionMode3Run(1,500,200, throttlePercent); 
+  }else{
+    positionMode3Run(1,500,200, 0); 
+  }
+
+  //Slave address=1, speed=100RPM, acceleration=200, absolute coordinates
 
   if(ackStatus == true)        //Received location information
   {
     test = "motor ok";
+   // positionMode3Run(1,200,200,throttlePercent*100); 
    // printToMonitor(&rxBuffer[5]); // The lower 32 bits output the real-time position value to the serial monitor
     
   }
@@ -70,7 +80,7 @@ void loop() {
   }
 
 
-  delay(10); 
+  delay(1); 
 
 // front end
 u8g.firstPage();
@@ -79,13 +89,17 @@ do {
   
 
   drawServoInfo(10,10,String(test));
-  drawThrottle(10,20,String(throttlePercent));
+  drawThrottle(10,20,String(potVal));
 
 
 //draw(0,10,TimeString);
 } while (u8g.nextPage());
 
 }
+
+
+
+
 
 void positionMode3Run(uint8_t slaveAddr,uint16_t speed,uint8_t acc,int32_t absAxis)
 {
@@ -182,7 +196,7 @@ bool waitingForACK(uint8_t len)
     }
 
     time = millis();
-    if((time - sTime) > 300)   //Judging whether to time out
+    if((time - sTime) > 3000)   //Judging whether to time out
     {
       retVal = false;
       break;                    //timeout, exit while(1)
