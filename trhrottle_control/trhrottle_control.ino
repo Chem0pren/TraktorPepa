@@ -11,8 +11,9 @@ int PEDAL_IN2 = A1;
 const int ENCODER = A6; 
 
 //H-bridge output
-#define MOTOR_CW 5
+#define enA 3
 #define MOTOR_CCW 4
+#define MOTOR_CW 5
 
 // properties
 float potVal = 0;
@@ -25,11 +26,17 @@ float CurrentAngle = 0;
 int motor_pwm_value = 0;
 
 //PID
+#define __Kp 200 // Proportional constant
+#define __Ki 1.2 // Integral Constant
+#define __Kd 2000 // Derivative Constant
+
+/*
 #define __Kp 260 // Proportional constant
 #define __Ki 2.7 // Integral Constant
 #define __Kd 2000 // Derivative Constant
+*/
 
-PIDController pid_controller;
+PIDController pidcontroller;
 
 
 void setup() {
@@ -39,7 +46,8 @@ void setup() {
   pinMode(MOTOR_CW, OUTPUT); // MOTOR_CW as Output
   pinMode(MOTOR_CCW, OUTPUT); // MOTOR_CW as Output
   pinMode(ENCODER, INPUT); // ENCODER as Input
-
+  pinMode(enA, OUTPUT);
+  
   pidcontroller.begin(); // initialize the PID instance
   pidcontroller.tune(__Kp , __Ki , __Kd); // Tune the PID, arguments: kP, kI, kD
   pidcontroller.limit(-255, 255); // Limit the PID output between -255 to 255, this is important to get rid of integral windup!
@@ -66,26 +74,44 @@ void loop() {
   int PedalInput1 = analogRead(PEDAL_IN1);
   int PedalInput2 = analogRead(PEDAL_IN2);
   
-  int PedalAngle = map(PedalInput1, 0, 365, 0, 4125);
-
-
+  int PedalAngle = map(PedalInput1, 74, 473, 0, 90);
 
   // encoder test
   Serial.print("Angle: ");
   Serial.println(CurrentAngle); // Print the angle to the Serial Monitor
-  delay(100); // Delay for readability
+  //delay(100); // Delay for readability
   
+  //Serial.println(PedalAngle); // Print the angle to the Serial Monitor
 
-  pidcontroller.setpoint(PedalAngle)
-  motor_pwm_value = pidcontroller.compute(CurrentAngle);
+  pidcontroller.setpoint(PedalAngle);
 
-  if (motor_pwm_value > 0) // if the motor_pwm_value is greater than zero we rotate the  motor in clockwise direction
-    MotorCounterClockwise(motor_pwm_value);
-  else // else, we move it in a counter-clockwise direction
-    MotorClockwise(abs(motor_pwm_value));
+  float AngleError = CurrentAngle - PedalAngle;
+  if (AngleError > 180) AngleError -= 360;  // Wraparound correction
+  if (AngleError < -180) AngleError += 360;
+
+  motor_pwm_value = pidcontroller.compute(AngleError);  // Use corrected error
 
 
-// throttlePercent = map(potVal, inputResMin, inputResMax, 0, 4125);
+
+ 
+  //motor_pwm_value = pidcontroller.compute(CurrentAngle);
+
+  Serial.println(motor_pwm_value); // Print the angle to the Serial Monitor
+
+
+
+if (motor_pwm_value > 0) {
+   
+    motor_cw(motor_pwm_value);
+
+}else{
+ 
+    motor_ccw(abs(motor_pwm_value));
+}
+
+    
+
+
 
   delay(1); 
 
@@ -123,8 +149,10 @@ float angle = map(sensorValue, 0, 1023, 0, 360); // Map the value to 0-360 degre
 return angle;
 }
 
+
 void motor_cw(int power) {
-  if (power > 100) {
+  if (power > 50) {
+    analogWrite(enA,power);
     analogWrite(MOTOR_CW, power);
     digitalWrite(MOTOR_CCW, LOW);
   }
@@ -136,7 +164,8 @@ void motor_cw(int power) {
 }
 
 void motor_ccw(int power) {
-  if (power > 100) {
+  if (power > 50) {
+    analogWrite(enA,abs(power));
     analogWrite(MOTOR_CCW, power);
     digitalWrite(MOTOR_CW, LOW);
   }
