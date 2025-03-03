@@ -21,13 +21,14 @@ float pedalValue1 = 0;
 float pedalValue2 = 0;
 float throttlePercent = 0;
 float CurrentAngle = 0;
+float UserCurrentAngle = 0;
 //int inputResMin = 516;
 //int inputResMax = 938;
 int motor_pwm_value = 0;
 
 //PID
 #define __Kp 200 // Proportional constant
-#define __Ki 1.2 // Integral Constant
+#define __Ki 0.8 // Integral Constant
 #define __Kd 2000 // Derivative Constant
 
 /*
@@ -38,6 +39,10 @@ int motor_pwm_value = 0;
 
 PIDController pidcontroller;
 
+
+//remove
+//String incomingByte;
+float motorVal = 0;
 
 void setup() {
 
@@ -76,44 +81,67 @@ void loop() {
   
   int PedalAngle = map(PedalInput1, 74, 473, 0, 90);
 
+  
   // encoder test
   Serial.print("Angle: ");
   Serial.println(CurrentAngle); // Print the angle to the Serial Monitor
   //delay(100); // Delay for readability
+  Serial.print("PedalAngle: ");
+  Serial.println(PedalAngle); // Print the angle to the Serial Monitor
   
-  //Serial.println(PedalAngle); // Print the angle to the Serial Monitor
 
-  pidcontroller.setpoint(PedalAngle);
+  //PID control
+  if(PedalAngle > 1){
+    pidcontroller.setpoint(PedalAngle);
+    // remove angle set by thumpad
+  }
+  else{
+    pidcontroller.setpoint(10);
+  }
 
+
+  // 45 0 
+
+  
   float AngleError = CurrentAngle - PedalAngle;
   if (AngleError > 180) AngleError -= 360;  // Wraparound correction
   if (AngleError < -180) AngleError += 360;
 
+  //Serial.print("Angle Error: ");
+  //Serial.println(AngleError);
+
   motor_pwm_value = pidcontroller.compute(AngleError);  // Use corrected error
 
-
-
- 
-  //motor_pwm_value = pidcontroller.compute(CurrentAngle);
-
+  Serial.print("PID: ");
   Serial.println(motor_pwm_value); // Print the angle to the Serial Monitor
 
+  /*
+  if (Serial.available()) {
+      String inputString = Serial.readStringUntil('\n');  // Read until newline
+      float receivedValue = inputString.toFloat();        // Convert to float
+      Serial.print("Received: ");
+      Serial.println(receivedValue);
+
+      analogWrite(enA,receivedValue);
+      digitalWrite(MOTOR_CW, HIGH);
+      digitalWrite(MOTOR_CCW, LOW);
+  }
+  */
+  
 
 
-if (motor_pwm_value > 0) {
-   
-    motor_cw(motor_pwm_value);
 
-}else{
- 
-    motor_ccw(abs(motor_pwm_value));
-}
-
-    
-
-
-
-  delay(1); 
+  //run motor
+  
+  if (motor_pwm_value > 0) {
+      motor_cw(abs(motor_pwm_value));
+  }
+  else
+  {
+      motor_ccw(abs(motor_pwm_value));
+  }
+  
+  delay(10); 
 
 // front end
 u8g.firstPage();
@@ -145,18 +173,17 @@ u8g.print(message);
 float GetEncoderAngle(int encoderPin)
 {
 int sensorValue = analogRead(encoderPin); // Read the analog value from encoder
-float angle = map(sensorValue, 0, 1023, 0, 360); // Map the value to 0-360 degrees
-return angle;
+float angle = map(sensorValue, 0, 1023, 0, 3600); // Map the value to 0-360 degrees
+return angle/10;
 }
 
 
 void motor_cw(int power) {
-  if (power > 50) {
+  if (power > 20) {
     analogWrite(enA,power);
-    analogWrite(MOTOR_CW, power);
+    digitalWrite(MOTOR_CW, HIGH);
     digitalWrite(MOTOR_CCW, LOW);
   }
-// both of the pins are set to low
   else {
     digitalWrite(MOTOR_CW, LOW);
     digitalWrite(MOTOR_CCW, LOW);
@@ -164,14 +191,16 @@ void motor_cw(int power) {
 }
 
 void motor_ccw(int power) {
-  if (power > 50) {
+  if (power > 20) {
     analogWrite(enA,abs(power));
-    analogWrite(MOTOR_CCW, power);
+    digitalWrite(MOTOR_CCW, HIGH);
     digitalWrite(MOTOR_CW, LOW);
+    //Serial.println("motor CW off");
   }
   else {
     digitalWrite(MOTOR_CW, LOW);
     digitalWrite(MOTOR_CCW, LOW);
+   // Serial.println("motor CCW off");
   }
 }
 
