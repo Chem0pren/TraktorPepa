@@ -56,15 +56,19 @@ void loop() {
   int PedalAngle = map(PedalInput1, 74, 473, 0, 90);
   
 
-  //Serial.println(PedalAngle);
+ // Serial.println(PedalAngle);
 
   moveTo(PedalAngle);
-  Serial.println(getPos());
+ // Serial.println(getPos());
   //inputPos();
 }
 
 float moveTo(float setpoint){ // moves the servo to an input position
   float error, out;
+
+  static float lastError = 0;
+  static float integral = 0;
+
 
   float CW_error = setpoint - getPos(); //calculates the error if moving CW
   if(CW_error < 0){ //if CW_error is less than 0
@@ -88,21 +92,59 @@ float moveTo(float setpoint){ // moves the servo to an input position
     error = -1*CCW_error; //makes error negative
   }
   
-  out = 20*error;
-  out = constrain(out, -255, 255); //constrains output to have maximum magnitude of 255 
-  //Serial.print(abs(out));
+
+  float Kp = 2.0;  
+  float Ki = 0.01;  
+  float Kd = 3.5;   
+
+  integral += error;  
+  integral = constrain(integral, -50, 50);  // Prevent integral windup
+
+  float derivative = error - lastError;
+  out = (Kp * error) + (Ki * integral) + (Kd * derivative);
+  lastError = error;
+
+  out = constrain(out, -255, 255);
+
+  Serial.print("error");
+  Serial.println(error);
+
+  out = 10*error;
+
+  if(abs(error) > 1){
+    if(error > 0){
+    out = max(out, 50); // Set a minimum threshold for forward
+    }else if (error < 0){
+    out = min(out, -50); // Set a minimum threshold for reverse
+    }
+    Serial.print("-correcting error-");
+    Serial.println(error);
+    Serial.print(out);
+  }else{
+  out = 0;
+
+  }
+
+ 
+  
+ // out = constrain(out, -255, 255); //constrains output to have maximum magnitude of 255 
+  
+ 
 
   
-  if (abs(out) < 25) { // If output is too small, motor won't move
-      out = 0; // Keep motor off in the dead zone
-  } 
-  else if (out > 0) { // Ensure minimum PWM for movement
+ // if((abs(out) < 20)|{ // If output is too small, motor won't move
+   //   out = 0; // Keep motor off in the dead zone
+  //} 
+  /*
+  if (out > 0) { // Ensure minimum PWM for movement
       out = max(out, 50); // Set a minimum threshold for forward
   } 
-  else if (out < 0) {
+  else if(out < 0) {
       out = min(out, -50); // Set a minimum threshold for reverse
   }
-  
+  */
+  //Serial.print("error");
+ // Serial.println(abs(out));
 
 
   if(out > 0){ //if output is positive move CW
