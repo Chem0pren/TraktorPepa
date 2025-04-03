@@ -1,17 +1,11 @@
+#include <U8glib.h>
+
+U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
+
 //pins
-int ENA = 3; // enable pin 
-int pwm[2] = {4, 5}; // motor driver pwm pins 
-int encoder = A6; // encoder pin
-
-//smoothing 
-const int numReadings = 50;
-
-int readings[numReadings];  // the readings from the analog input
-int readIndex = 0;          // the index of the current reading
-int total = 0;              // the running total
-int average = 0;  
-
-
+const int ENA = 3; // enable pin 
+const int pwm[2] = {4, 5}; // motor driver pwm pins 
+const int encoder = A6; // encoder pin
 
 int PEDAL_IN1 = A0;
 //constants
@@ -22,45 +16,34 @@ void setup() {
   pinMode(ENA, OUTPUT);
   Serial.begin(38400);
   moveTo(0);
-  for (int thisReading = 0; thisReading < numReadings; thisReading++) {
-  readings[thisReading] = 0;
-  }
+  u8g.setColorIndex(1); // display draws with pixel on
+
+  
 }
 
 void loop() {
   int PedalInput1 = analogRead(PEDAL_IN1);
-  
-  
-    // subtract the last reading:
-  total = total - readings[readIndex];
-  // read from the sensor:
-  readings[readIndex] = analogRead(PEDAL_IN1);
-  // add the reading to the total:
-  total = total + readings[readIndex];
-  // advance to the next position in the array:
-  readIndex = readIndex + 1;
-
-  // if we're at the end of the array...
-  if (readIndex >= numReadings) {
-    // ...wrap around to the beginning:
-    readIndex = 0;
-  }
-
-  // calculate the average:
-  average = total / numReadings;
-  // send it to the computer as ASCII digits
- // Serial.println(average);
   delay(1);  // delay in between reads for stability
-
-
   int PedalAngle = map(PedalInput1, 74, 473, 0, 90);
+ 
+  moveTo(PedalAngle);
+
+  // front end
+  u8g.firstPage();
+  do {
+
+    //drawServoInfo(10,10,String(test));
+    drawThrottle(40,40,String(100));
+   //drawThrottleTriangle(100);
+
+  //draw(0,10,TimeString);
+  } while (u8g.nextPage());
+
   
 
- // Serial.println(PedalAngle);
 
-  moveTo(PedalAngle);
- // Serial.println(getPos());
-  //inputPos();
+
+
 }
 
 float moveTo(float setpoint){ // moves the servo to an input position
@@ -126,27 +109,6 @@ float moveTo(float setpoint){ // moves the servo to an input position
   }
 
  
-  
- // out = constrain(out, -255, 255); //constrains output to have maximum magnitude of 255 
-  
- 
-
-  
- // if((abs(out) < 20)|{ // If output is too small, motor won't move
-   //   out = 0; // Keep motor off in the dead zone
-  //} 
-  /*
-  if (out > 0) { // Ensure minimum PWM for movement
-      out = max(out, 50); // Set a minimum threshold for forward
-  } 
-  else if(out < 0) {
-      out = min(out, -50); // Set a minimum threshold for reverse
-  }
-  */
-  //Serial.print("error");
- // Serial.println(abs(out));
-
-
   if(out > 0){ //if output is positive move CW
     analogWrite(ENA, abs(out)); //sets enable pin HIGH
     analogWrite(pwm[0], 0);
@@ -180,10 +142,39 @@ float getPos(){ // gets and returns encoder position
   return pos;
 }
 
-void inputPos(){ // moves servo to the position typed in the serial monitor
-  if (Serial.available() > 0) {    // is a character available?
-    input = Serial.readString();
-  }
-  moveTo(input.toInt());
-  Serial.println(getPos());
+//DISPLAY
+void drawServoInfo(int pos_x,int pos_y,String message)
+{
+u8g.setFont(u8g_font_04b_03b);
+u8g.setPrintPos(pos_x, pos_y);
+u8g.print(message);
+}
+
+void drawThrottle(int pos_x,int pos_y,String message)
+{
+
+//u8g_font_helvB24n
+u8g.setFont(u8g_font_helvB24n);
+u8g.setPrintPos(pos_x, pos_y);
+u8g.print(message);
+
+
+//u8g.drawBox(10, 50, 100 ,50);
+
+
+}
+
+void drawThrottleTriangle(int throttle) {
+    int max_width = 128;  // Display width
+    int max_height = 64;  // Display height
+    int base_y = max_height;  // Bottom of the screen
+
+    // Map throttle (0-1023) to screen width
+    int triangle_width = map(throttle, 0, 100, 0, max_width);
+
+    // Draw the triangle
+    u8g.drawTriangle(0, base_y,  // Bottom-left
+                         triangle_width, base_y,  // Bottom-right
+                         triangle_width, base_y - (triangle_width / 2)); // Peak
+
 }
