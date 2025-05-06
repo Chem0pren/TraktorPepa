@@ -1,42 +1,109 @@
 #include <U8glib.h>
+#include <EEPROM.h>
 
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
+
+int address = 0;  // EEPROM memory location to store data
+int valueToWrite = 42; // Example value
+
 
 //pins
 const int ENA = 3; // enable pin 
 const int pwm[2] = {4, 5}; // motor driver pwm pins 
 const int encoder = A6; // encoder pin
+const int buttonPin = 2;
+
+#define pinX A0
+#define pinY A1
 
 int PEDAL_IN1 = A0;
 //constants
 float offset = 0;
 String input;
 
+//eprom data
+int Kpaddress = 0;  // float takes 4 bytes
+int Kiaddress = Kpaddress + 4;
+int Kdaddress = Kiaddress + 4;
+//default data
+float KpDefault = 2.0;  
+float KiDefault = 0.01;  
+float KdDefault = 3.5;   
+
+float Kp;  
+float Ki;  
+float Kd;   
+float max_angle = 90;
+
+//button state 
+int buttonState = 0;  // variable for reading the pushbutton status
+
+int nulaX, nulaY;
+
 void setup() {
   pinMode(ENA, OUTPUT);
+  pinMode(buttonPin, INPUT_PULLUP);
+  nulaX = analogRead(pinX);
+  nulaY = analogRead(pinY);
   Serial.begin(38400);
   moveTo(0);
   u8g.setColorIndex(1); // display draws with pixel on
 
-  
+  // Write value to EEPROM
+  /*
+  EEPROM.put(Kpaddress, KpDefault);
+  EEPROM.put(Kiaddress, KiDefault);
+  EEPROM.put(Kdaddress, KdDefault);
+  */
+
+  Serial.println("Value written to EEPROM.");
+
+  delay(1000); // Short delay before reading
+
+  float Kp = readFloatFromEEPROM(Kiaddress);
+  Serial.println(Kp); // Should print 2.00 if written correctly
+
 }
 
 void loop() {
   int PedalInput1 = analogRead(PEDAL_IN1);
   delay(1);  // delay in between reads for stability
-  int PedalAngle = map(PedalInput1, 74, 473, 0, 90);
- 
+  int PedalAngle = map(PedalInput1, 74, 473, 0, max_angle);
   moveTo(PedalAngle);
+
+
+  // read the state of the pushbutton value:
+  buttonState = digitalRead(buttonPin);
+
+  int aktX, aktY, stavTlac;
+  aktX = analogRead(pinX) - nulaX;
+  aktY = analogRead(pinY) - nulaY;
+
+  /*
+  Serial.print("Souradnice X,Y = ");
+  Serial.print(aktX);
+  Serial.print(", ");
+  Serial.print(aktY);
+  
+
+  Serial.println(buttonPin);
+
+  // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
+  if (buttonState == HIGH) {
+    // turn LED on:
+    Serial.println("button pressed");
+  } else {
+    // turn LED off:
+    Serial.println("button not pressed");
+  }
+  */
+
+
 
   // front end
   u8g.firstPage();
   do {
-
-    //drawServoInfo(10,10,String(test));
-    drawThrottle(40,40,String(100));
-   //drawThrottleTriangle(100);
-
-  //draw(0,10,TimeString);
+    //drawThrottle(40,40,String(100));
   } while (u8g.nextPage());
 
   
@@ -44,6 +111,20 @@ void loop() {
 
 
 
+}
+
+
+float readFloatFromEEPROM(int address) {
+  union {
+    byte b[4];
+    float f;
+  } data;
+
+  for (int i = 0; i < 4; i++) {
+    data.b[i] = EEPROM.read(address + i);
+  }
+
+  return data.f;
 }
 
 float moveTo(float setpoint){ // moves the servo to an input position
@@ -75,11 +156,6 @@ float moveTo(float setpoint){ // moves the servo to an input position
     error = -1*CCW_error; //makes error negative
   }
   
-
-  float Kp = 2.0;  
-  float Ki = 0.01;  
-  float Kd = 3.5;   
-
   integral += error;  
   integral = constrain(integral, -50, 50);  // Prevent integral windup
 
@@ -89,8 +165,8 @@ float moveTo(float setpoint){ // moves the servo to an input position
 
   out = constrain(out, -255, 255);
 
-  Serial.print("error");
-  Serial.println(error);
+ // Serial.print("error");
+ // Serial.println(error);
 
   out = 10*error;
 
@@ -100,9 +176,9 @@ float moveTo(float setpoint){ // moves the servo to an input position
     }else if (error < 0){
     out = min(out, -50); // Set a minimum threshold for reverse
     }
-    Serial.print("-correcting error-");
-    Serial.println(error);
-    Serial.print(out);
+   // Serial.print("-correcting error-");
+   // Serial.println(error);
+   // Serial.print(out);
   }else{
   out = 0;
 
@@ -152,16 +228,11 @@ u8g.print(message);
 
 void drawThrottle(int pos_x,int pos_y,String message)
 {
-
 //u8g_font_helvB24n
 u8g.setFont(u8g_font_helvB24n);
 u8g.setPrintPos(pos_x, pos_y);
 u8g.print(message);
-
-
 //u8g.drawBox(10, 50, 100 ,50);
-
-
 }
 
 void drawThrottleTriangle(int throttle) {
