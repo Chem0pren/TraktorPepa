@@ -3,18 +3,14 @@
 
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
 
-int address = 0;  // EEPROM memory location to store data
-int valueToWrite = 42; // Example value
-
-
 //pins
 const int ENA = 3; // enable pin 
 const int pwm[2] = {4, 5}; // motor driver pwm pins 
 const int encoder = A6; // encoder pin
 const int buttonPin = 2;
 
-#define pinX A0
-#define pinY A1
+#define pinX A2
+#define pinY A3
 
 int PEDAL_IN1 = A0;
 //constants
@@ -26,9 +22,11 @@ int Kpaddress = 0;  // float takes 4 bytes
 int Kiaddress = Kpaddress + 4;
 int Kdaddress = Kiaddress + 4;
 //default data
+/*
 float KpDefault = 2.0;  
 float KiDefault = 0.01;  
 float KdDefault = 3.5;   
+*/
 
 float Kp;  
 float Ki;  
@@ -39,6 +37,7 @@ float max_angle = 90;
 int buttonState = 0;  // variable for reading the pushbutton status
 
 int nulaX, nulaY;
+
 
 void setup() {
   pinMode(ENA, OUTPUT);
@@ -66,40 +65,26 @@ void setup() {
 }
 
 void loop() {
+  
+  //pedal ops
   int PedalInput1 = analogRead(PEDAL_IN1);
   delay(1);  // delay in between reads for stability
   int PedalAngle = map(PedalInput1, 74, 473, 0, max_angle);
   moveTo(PedalAngle);
 
-
   // read the state of the pushbutton value:
   buttonState = digitalRead(buttonPin);
 
-  int aktX, aktY, stavTlac;
-  aktX = analogRead(pinX) - nulaX;
-  aktY = analogRead(pinY) - nulaY;
-
-  /*
-  Serial.print("Souradnice X,Y = ");
-  Serial.print(aktX);
-  Serial.print(", ");
-  Serial.print(aktY);
-  
-
-  Serial.println(buttonPin);
 
   // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
   if (buttonState == HIGH) {
     // turn LED on:
-    Serial.println("button pressed");
+    Serial.println("button not pressed");
   } else {
     // turn LED off:
-    Serial.println("button not pressed");
+    Serial.println("button pressed");
   }
-  */
-
-
-
+  
   // front end
   u8g.firstPage();
   do {
@@ -107,10 +92,6 @@ void loop() {
   } while (u8g.nextPage());
 
   
-
-
-
-
 }
 
 
@@ -217,6 +198,7 @@ float getPos(){ // gets and returns encoder position
 
   return pos;
 }
+
 
 //DISPLAY
 void drawServoInfo(int pos_x,int pos_y,String message)
