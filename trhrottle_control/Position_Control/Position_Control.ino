@@ -9,8 +9,8 @@ const int pwm[2] = {4, 5}; // motor driver pwm pins
 const int encoder = A6; // encoder pin
 const int buttonPin = 2;
 
-#define pinX A2
-#define pinY A3
+#define pinY A2
+#define pinX A3
 
 int PEDAL_IN1 = A0;
 //constants
@@ -21,79 +21,225 @@ String input;
 int Kpaddress = 0;  // float takes 4 bytes
 int Kiaddress = Kpaddress + 4;
 int Kdaddress = Kiaddress + 4;
+int AngleAdress = Kdaddress + 4;
+
 //default data
 /*
 float KpDefault = 2.0;  
 float KiDefault = 0.01;  
 float KdDefault = 3.5;   
 */
+float default_angle = 90;
 
 float Kp;  
 float Ki;  
 float Kd;   
-float max_angle = 90;
+float max_angle;
 
 //button state 
 int buttonState = 0;  // variable for reading the pushbutton status
+//hold button
+unsigned long buttonHoldStart = 0;
+bool buttonHeld = false;
+const unsigned long holdTime = 3000; // 3 seconds
 
-int nulaX, nulaY;
+int PedalAngle;
+int PedalInput1;
 
+//menu state
+int displayMenu = 1;
+
+unsigned long lastMoveTime = 0;
+const int debounceDelay = 500;
+
+//menu item
+struct MenuItem {
+  const char* name;
+  float* value;
+  float step;
+};
+
+//menu list
+MenuItem menu[] = {
+  {"Kp", &Kp, 0.1},
+  {"Ki", &Ki, 0.1},
+  {"Kd", &Kd, 0.1},
+  {"MaxAngle", &max_angle, 1.0}
+};
+
+const int menuLength = sizeof(menu) / sizeof(menu[0]);
+int selectedItem = 0;
 
 void setup() {
   pinMode(ENA, OUTPUT);
   pinMode(buttonPin, INPUT_PULLUP);
-  nulaX = analogRead(pinX);
-  nulaY = analogRead(pinY);
+  //nulaX = analogRead(pinX);
   Serial.begin(38400);
   moveTo(0);
   u8g.setColorIndex(1); // display draws with pixel on
 
-  // Write value to EEPROM
-  /*
-  EEPROM.put(Kpaddress, KpDefault);
-  EEPROM.put(Kiaddress, KiDefault);
-  EEPROM.put(Kdaddress, KdDefault);
-  */
-
-  Serial.println("Value written to EEPROM.");
-
+  Serial.println("read from EEPROM.");
   delay(1000); // Short delay before reading
-
-  float Kp = readFloatFromEEPROM(Kiaddress);
-  Serial.println(Kp); // Should print 2.00 if written correctly
+  //load EEPROM data
+  loadFromEEPROM();
 
 }
 
 void loop() {
-  
   //pedal ops
-  int PedalInput1 = analogRead(PEDAL_IN1);
+  PedalInput1 = analogRead(PEDAL_IN1);
   delay(1);  // delay in between reads for stability
-  int PedalAngle = map(PedalInput1, 74, 473, 0, max_angle);
+  PedalAngle = map(PedalInput1, 60, 405, 0, max_angle);
   moveTo(PedalAngle);
 
-  // read the state of the pushbutton value:
-  buttonState = digitalRead(buttonPin);
+  int yVal = analogRead(pinY);
+  int xVal = analogRead(pinX);
 
-
-  // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
-  if (buttonState == HIGH) {
-    // turn LED on:
-    Serial.println("button not pressed");
+  //hold button check
+  if (digitalRead(buttonPin) == LOW) 
+  {
+    if (!buttonHeld) {
+      buttonHeld = true;
+      buttonHoldStart = millis();
+    } else if (millis() - buttonHoldStart >= holdTime) {
+      if(displayMenu == 0)
+      {
+        Serial.println("entering menu");
+        displayMenu = 1;
+      }else
+      {
+        displayMenu = 3;
+        Serial.println("save data");
+        saveToEEPROM();
+        //drawInfo(40,40,"Data");
+        delay(500);
+        displayMenu = 0;
+      }
+     
+      buttonHeld = false;
+    }
   } else {
-    // turn LED off:
-    Serial.println("button pressed");
+    buttonHeld = false;
+  }
+
+
+  if(displayMenu == 1)
+  {
+    if (millis() - lastMoveTime > debounceDelay) 
+    {
+      // Navigation
+      if (yVal < 400) 
+      {
+        selectedItem--;
+        if (selectedItem < 0) selectedItem = menuLength - 1;
+        lastMoveTime = millis();
+       // drawMenu();   
+        
+      } else if (yVal > 600) 
+      {
+        selectedItem++;
+        if (selectedItem >= menuLength) selectedItem = 0;
+        lastMoveTime = millis();
+       // drawMenu();   
+        
+      }
+
+      // Adjust value left/right
+      if (xVal < 400) {
+        adjustValue(-1);
+        lastMoveTime = millis();
+       // drawMenu();   
+       
+      } else if (xVal > 600) {
+        adjustValue(1);
+        lastMoveTime = millis();
+       // drawMenu();  
+      }
+    
+    drawMenu();   
+    }
+  
+ 
+
+  Serial.println(selectedItem);
+  Serial.println(*menu[selectedItem].value);
+  Serial.println(menu[selectedItem].name);
+
+  }
+
+  if(displayMenu == 0)
+  {
+    drawThrottle(40,40,String(100));
   }
   
+
+  /*
   // front end
   u8g.firstPage();
   do {
-    //drawThrottle(40,40,String(100));
+   
   } while (u8g.nextPage());
-
+  */
+ 
   
 }
 
+
+void drawMenu() {
+
+  u8g.setFont(u8g_font_04b_03br);
+ 
+  u8g.firstPage();
+  do {
+    for (int i = 0; i < menuLength; i++) {
+      int y = 7 + i * 7;
+      if (i == selectedItem) {
+        //u8g.drawFrame(0, y - 10, 100, 10);
+        
+        //u8g.setColorIndex(0); // text in black
+        u8g.setPrintPos(2, y);
+        u8g.print(">");
+        u8g.print(menu[i].name);
+        u8g.print(": ");
+        u8g.print(*menu[i].value, 2);
+        //u8g.setColorIndex(1); // reset to white
+      } else {
+        u8g.setPrintPos(2, y);
+        u8g.print(menu[i].name);
+        u8g.print(": ");
+        u8g.print(*menu[i].value, 2);
+      }
+    }
+
+    u8g.setPrintPos(2, 50);
+    u8g.print("PedalAngle: ");
+    u8g.print(String(PedalAngle));
+
+    u8g.setPrintPos(2, 57);
+    u8g.print("PedalInput: ");
+    u8g.print(String(PedalInput1));
+    
+
+  } while (u8g.nextPage());
+}
+
+// === Adjust Current Value ===
+void adjustValue(int direction) {
+  *menu[selectedItem].value += menu[selectedItem].step * direction;
+}
+
+
+void saveToEEPROM() {
+  for (int i = 0; i < menuLength; i++) {
+    EEPROM.put(i * sizeof(float), *menu[i].value);
+  }
+}
+
+void loadFromEEPROM() {
+  for (int i = 0; i < menuLength; i++) {
+    EEPROM.get(i * sizeof(float), *menu[i].value);
+  }
+}
 
 float readFloatFromEEPROM(int address) {
   union {
@@ -208,12 +354,26 @@ u8g.setPrintPos(pos_x, pos_y);
 u8g.print(message);
 }
 
+
+void drawInfo(int pos_x,int pos_y,String message)
+{
+u8g.firstPage();
+do {
+  u8g.setFont(u8g_font_helvB24n);
+  u8g.setPrintPos(pos_x, pos_y);
+  u8g.print(message);
+  } while (u8g.nextPage());
+}
+
+
 void drawThrottle(int pos_x,int pos_y,String message)
 {
-//u8g_font_helvB24n
-u8g.setFont(u8g_font_helvB24n);
-u8g.setPrintPos(pos_x, pos_y);
-u8g.print(message);
+u8g.firstPage();
+do {
+  u8g.setFont(u8g_font_helvB24n);
+  u8g.setPrintPos(pos_x, pos_y);
+  u8g.print(message);
+  } while (u8g.nextPage());
 //u8g.drawBox(10, 50, 100 ,50);
 }
 
