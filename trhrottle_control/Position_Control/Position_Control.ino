@@ -89,7 +89,7 @@ void loop() {
   //pedal ops
   PedalInput1 = analogRead(PEDAL_IN1);
   delay(1);  // delay in between reads for stability
-  PedalAngle = map(PedalInput1, 60, 405, 0, max_angle);
+  PedalAngle = map(PedalInput1, 75, 472, 0, max_angle);
   moveTo(PedalAngle);
 
   int yVal = analogRead(pinY);
@@ -161,9 +161,9 @@ void loop() {
   
  
 
-  Serial.println(selectedItem);
-  Serial.println(*menu[selectedItem].value);
-  Serial.println(menu[selectedItem].name);
+  //Serial.println(selectedItem);
+  //Serial.println(*menu[selectedItem].value);
+  //Serial.println(menu[selectedItem].name);
 
   }
 
@@ -218,7 +218,10 @@ void drawMenu() {
     u8g.setPrintPos(2, 57);
     u8g.print("PedalInput: ");
     u8g.print(String(PedalInput1));
-    
+
+    u8g.setPrintPos(2, 63);
+    u8g.print("current angle: ");
+    u8g.print(String(getPos()));
 
   } while (u8g.nextPage());
 }
