@@ -281,7 +281,7 @@ float moveTo(float setpoint){ // moves the servo to an input position
 
   out = 5*error;
   out = constrain(out, -255, 255); //constrains output to have maximum magnitude of 255 
-  if(abs(out) < 50){ //if output is less than 25 make it 0
+  if(abs(out) < 5){ //if output is less than 25 make it 0
     out = 0;
   }
 
