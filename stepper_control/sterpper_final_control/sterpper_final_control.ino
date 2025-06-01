@@ -17,7 +17,7 @@ A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
 
 int previous = 0;
 int v = 0;
-const int tolerance = 1;
+const int tolerance = 0;
 int lastInputAngle = 0;
 
 int inputPin = A0;
@@ -28,6 +28,10 @@ const int STEPS_PER_REV = 100;
 
 const int HOME_TOLERANCE_DEG = 1;     // Acceptable range around 0°
 const int POT_ZERO_THRESHOLD = 10;    // Treat potentiometer as "zero" below this value
+
+float smoothedValue = 0;
+float minAlpha = 0.1;  // Smoothing when changes are small
+float maxAlpha = 0.8;   // Smoothing when changes are large
 
 float getEncoderAngle() {
   int raw = analogRead(encoderPin);
@@ -100,32 +104,62 @@ void loop() {
   //digitalWrite(9, HIGH);
 
   int currentReading = analogRead(inputPin);
+  
+  //if something happend with cable
+ 
 
-  //Serial.println(currentReading);
 
   int input_angle = map(currentReading, 75, 472, 0, 90);
 
-    
-  // Normal movement based on potentiometer
-  if (abs(input_angle - lastInputAngle) > tolerance) {
-    v = map(abs(input_angle), 0, 360, 0, 600);
+  int rawValue = input_angle;
+
+  float difference = abs(rawValue - smoothedValue);
+
+  // Normalize difference (0–1023) to a 0–1 scale
+  float normDiff = constrain(difference / 90.0, 0, 1);
+
+  // Interpolate alpha between min and max based on difference
+  float alpha = minAlpha + (maxAlpha - minAlpha) * normDiff;
+
+  // Apply smoothing
+  smoothedValue = alpha * rawValue + (1 - alpha) * smoothedValue;
+
+
+  turnToAngle(round(smoothedValue));
+
+  //enshure always zero when idle
+  if(round(smoothedValue) == 0 &&  stepper.getStepsCompleted() == 0)
+  {
+    //Serial.println(getEncoderAngle());
+    if(getEncoderAngle() > 1){
+    seekHome();
+    }
+  }
+
+  delay(10);
+}
+
+
+void turnToAngle(int angle_to_move)
+{
+    if(angle_to_move < 0){
+      angle_to_move = 0;
+    }
+    // Normal movement based on potentiometer
+  //if (abs(angle_to_move - lastInputAngle) > tolerance) {
+    v = map(abs(angle_to_move), 0, 360, 0, 600);
     int stepsToMove = (v - previous) * MICROSTEPS;
 
     stepper.move(stepsToMove);
     currentPosition += stepsToMove;
 
-    lastInputAngle = input_angle;
+    lastInputAngle = angle_to_move;
     previous = v;
 
     float finalAngle = getEncoderAngle();
-    Serial.print("Target: "); Serial.print(input_angle);
+    Serial.print("Target: "); Serial.print(angle_to_move);
     Serial.print(" | Reached: "); Serial.println(finalAngle);
-    }
-    
-  delay(10);
+  //}
 }
-
-
-
 
 
