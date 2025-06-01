@@ -17,7 +17,7 @@ A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
 
 int previous = 0;
 int v = 0;
-const int tolerance = 5;
+const int tolerance = 1;
 int lastInputAngle = 0;
 
 int inputPin = A0;
@@ -57,14 +57,40 @@ void seekHome() {
   currentPosition = 0;
 }
 
+void correctPos() {
+  Serial.println("Seeking home position...");
+  float angle = getEncoderAngle();
+
+  while (!(angle < HOME_TOLERANCE_DEG || angle > (360 - HOME_TOLERANCE_DEG))) {
+    if(angle > 0 && angle < 100){
+      stepper.move(-1);  // Move slowly backward
+    }
+    else{
+      stepper.move(1);  // Move slowly backward
+
+    }
+    currentPosition--;
+    delay(5);
+    angle = getEncoderAngle();
+    Serial.print("Current Angle: ");
+    Serial.println(angle);
+  }
+
+  Serial.println("Home position reached.");
+  currentPosition = 0;
+}
+
+
+
+
 void setup() {
-  pinMode(10, OUTPUT);
-  pinMode(9, OUTPUT);
+ // pinMode(10, OUTPUT);
+  //pinMode(9, OUTPUT);
   Serial.begin(9600);
   stepper.setRPM(200);
   stepper.setMicrostep(MICROSTEPS);
 
- // seekHome();  // Home at startup
+  seekHome();  // Home at startup
 
 }
 
@@ -75,7 +101,7 @@ void loop() {
 
   int currentReading = analogRead(inputPin);
 
-  Serial.println(currentReading);
+  //Serial.println(currentReading);
 
   int input_angle = map(currentReading, 75, 472, 0, 90);
 
@@ -92,8 +118,8 @@ void loop() {
     previous = v;
 
     float finalAngle = getEncoderAngle();
-   // Serial.print("Target: "); Serial.print(input_angle);
-   // Serial.print(" | Reached: "); Serial.println(finalAngle);
+    Serial.print("Target: "); Serial.print(input_angle);
+    Serial.print(" | Reached: "); Serial.println(finalAngle);
     }
     
   delay(10);
