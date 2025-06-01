@@ -5,11 +5,13 @@
 #define DIR 3
 #define STEP 4
 #define ENBL 8
-#define MS1 5
+#define MS1 7
 #define MS2 6
-#define MS3 7
+#define MS3 5
 #define GEAR_RATIO 3.0
 #define MICROSTEPS 2
+#define STEPPPER_ON 10
+
 
 A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
 
@@ -56,40 +58,31 @@ void seekHome() {
 }
 
 void setup() {
+  pinMode(10, OUTPUT);
+  pinMode(9, OUTPUT);
   Serial.begin(9600);
   stepper.setRPM(200);
   stepper.setMicrostep(MICROSTEPS);
 
-  seekHome();  // Home at startup
+ // seekHome();  // Home at startup
 
 }
 
 void loop() {
 
+  //digitalWrite(10, HIGH);
+  //digitalWrite(9, HIGH);
+
   int currentReading = analogRead(inputPin);
 
-  //int pedal_angle = analogRead(inputPin);
+  Serial.println(currentReading);
 
-  int input_angle = map(currentReading, 75, 472, 0, 360);
+  int input_angle = map(currentReading, 75, 472, 0, 90);
 
-
-
-
-  int angle = getPos();
-
-  
-
-  //Serial.print("engle error: ");
- // Serial.println(angle - abs(input_angle));
- // Serial.print("encoder Angle: ");
- // Serial.println(angle);
-
-
-  //moveToAngle(input_angle);
-  
+    
   // Normal movement based on potentiometer
   if (abs(input_angle - lastInputAngle) > tolerance) {
-    v = map(input_angle, 0, 360, 0, 600);
+    v = map(abs(input_angle), 0, 360, 0, 600);
     int stepsToMove = (v - previous) * MICROSTEPS;
 
     stepper.move(stepsToMove);
@@ -99,67 +92,14 @@ void loop() {
     previous = v;
 
     float finalAngle = getEncoderAngle();
-    Serial.print("Target: "); Serial.print(input_angle);
-    Serial.print(" | Reached: "); Serial.println(finalAngle);
+   // Serial.print("Target: "); Serial.print(input_angle);
+   // Serial.print(" | Reached: "); Serial.println(finalAngle);
     }
     
-  delay(1);
+  delay(10);
 }
 
-void moveToAngle(float targetAngle) {
-  float currentAngle = getEncoderAngle();
-  float angleDelta = targetAngle - currentAngle;
-
-  // Normalize angle to -180 to +180 range
-  //if (angleDelta > 180) angleDelta -= 360;
-  //if (angleDelta < -180) angleDelta += 360;
-
-  // Steps = angleDelta / 360 * stepsPerRevBigPulley
-  int stepsToMove = angleDelta * (MOTOR_STEPS * GEAR_RATIO);
 
 
-  stepper.move(stepsToMove);
 
-  // Optional: verify angle achieved (can loop + recheck if needed)
-  delay(500); // wait for motor to settle
-  float finalAngle = getEncoderAngle();
-  Serial.print("Target: "); Serial.print(targetAngle);
-  Serial.print(" | Reached: "); Serial.println(finalAngle);
-}
 
-float getPos(){ // gets and returns encoder position
-  // gets raw 10 bit position from the encoder and maps it to angle value
-  // adds offset value
-  int offset = 0;
-  float pos = map(analogRead(encoderPin), 0, 1023, 0, 359) + offset;
-  //corrects position if needed
-  if (pos < 0) {
-    pos = 359 + pos;
-  }
-
-  else if (pos > 359) {
-    pos = pos - 359;
-  }
-
-  return pos;
-}
-
-/*
-  // Normal movement based on potentiometer
-  if (abs(currentReading - lastReading) > tolerance) {
-    v = map(currentReading, 75, 472, 0, 200);
-    int stepsToMove = (v - previous) * 2;
-
-    currentPosition += stepsToMove;
-    
-    Serial.print("Potentiometer Value: ");
-    Serial.println(currentReading);
-    Serial.print("Stepper Position (steps): ");
-    Serial.println(currentPosition);
-
-    
-
-    lastReading = currentReading;
-    previous = v;
-  }
-  */
