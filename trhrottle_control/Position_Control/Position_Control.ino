@@ -80,6 +80,8 @@ MenuItem menu[] = {
 const int menuLength = sizeof(menu) / sizeof(menu[0]);
 int selectedItem = 0;
 
+int smoothedPedalValue = 0;
+
 void setup() {
   stepper.setRPM(200);
   stepper.setMicrostep(MICROSTEPS);
@@ -105,7 +107,7 @@ void loop() {
     }
   }
 
-  int smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
+  smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
 
   if(!error){
     turnToAngle(smoothedPedalValue);
@@ -236,16 +238,16 @@ void drawMenu() {
     }
 
     u8g.setPrintPos(2, 50);
-   // u8g.print("PedalAngle: ");
-   // u8g.print(String(PedalAngle));
+    u8g.print("PedalAngle: ");
+    u8g.print(String(smoothedPedalValue));
 
     u8g.setPrintPos(2, 57);
    // u8g.print("PedalInput: ");
    // u8g.print(String(PedalInput1));
 
     u8g.setPrintPos(2, 63);
-  //  u8g.print("current angle: ");
-   // u8g.print(String(getPos()));
+    u8g.print("current angle: ");
+    u8g.print(String(getEncoderAngle()));
 
   } while (u8g.nextPage());
 }
