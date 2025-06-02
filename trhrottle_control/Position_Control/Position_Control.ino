@@ -1,41 +1,56 @@
 #include <U8glib.h>
 #include <EEPROM.h>
+#include "A4988.h"
 
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
 
-//pins
-const int buttonPin = 2;
+#define pinY A2
+#define pinX A3
+#define MOTOR_STEPS 200
+#define DIR 3
+#define STEP 4
+#define ENBL 8
+#define MS1 7
+#define MS2 6
+#define MS3 5
+#define GEAR_RATIO 3.0
+#define MICROSTEPS 2
+#define STEPPPER_ON 10
+#define INPUTPEDALPIN A0 
+#define ENCODERPIN A6
+#define BUTTONPIN 2
+#define STEPS_PER_REV 100
+
+A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
 
 //current jostick value
 int yVal = 0;
 int xVal = 0;
 
-#define pinY A2
-#define pinX A3
+//reading 
+int previous = 0;
+int v = 0;
+const int tolerance = 0;
+int lastInputAngle = 0;
+long currentPosition = 0;  // Manual step tracking
 
+const int POT_ZERO_THRESHOLD = 10;    // Treat potentiometer as "zero" below this value
+float smoothedValue = 0;
 
-//eprom data
-int Kpaddress = 0;  // float takes 4 bytes
-int Kiaddress = Kpaddress + 4;
-int Kdaddress = Kiaddress + 4;
-int AngleAdress = Kdaddress + 4;
+bool error = false;                 // Global or static error flag
+unsigned long movementStartTime = 0;
+bool movementInProgress = false;
+const int angleTolerance = 10;       // Degrees tolerance
 
-//default data
-/*
-float KpDefault = 2.0;  
-float KiDefault = 0.01;  
-float KdDefault = 3.5;   
-*/
-float default_angle = 90;
+bool init_done = false;
 
-float Kp;  
-float Ki;  
-float Kd;   
 float max_angle;
+float minAlpha = 0.1;  // Smoothing when changes are small
+float maxAlpha = 0.8;   // Smoothing when changes are large
+float maxWaitTime = 3000; // Max wait in ms
+float HOME_TOLERANCE_DEG = 1;     // Acceptable range around 0°
 
-//button state 
 int buttonState = 0;  // variable for reading the pushbutton status
-//hold button
 unsigned long buttonHoldStart = 0;
 bool buttonHeld = false;
 const unsigned long holdTime = 3000; // 3 seconds
@@ -55,24 +70,26 @@ struct MenuItem {
 
 //menu list
 MenuItem menu[] = {
-  {"Kp", &Kp, 0.1},
-  {"Ki", &Ki, 0.01},
-  {"Kd", &Kd, 0.1},
-  {"MaxAngle", &max_angle, 1.0}
+  {"Maximalni uhel", &max_angle, 1.0},
+  {"Citlivost min", &minAlpha, 0.01},
+  {"Citlivost max", &maxAlpha, 0.1},
+  {"Cas Erroru", &maxWaitTime, 1.0},
+  {"Home tolerance", &HOME_TOLERANCE_DEG, 1.0}
 };
 
 const int menuLength = sizeof(menu) / sizeof(menu[0]);
 int selectedItem = 0;
 
 void setup() {
-
-  pinMode(buttonPin, INPUT_PULLUP);
+  stepper.setRPM(200);
+  stepper.setMicrostep(MICROSTEPS);
+  pinMode(BUTTONPIN, INPUT_PULLUP);
   Serial.begin(9600);
   u8g.setColorIndex(1); // display draws with pixel on
   Serial.println("read from EEPROM.");
   delay(1000); // Short delay before reading
   //load EEPROM data
-  loadFromEEPROM();
+ // loadFromEEPROM();
 
 }
 
@@ -82,21 +99,52 @@ void loop() {
   yVal = analogRead(pinY);
   xVal = analogRead(pinX);
 
+  if(!init_done){
+    if(seekHome()){
+      init_done = true;
+    }
+  }
+
+  int smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
+
+  if(!error){
+    turnToAngle(smoothedPedalValue);
+  }
+
+  //ensure always zero when idle
+  if(smoothedPedalValue == 0 &&  stepper.getStepsCompleted() == 0)
+  {
+    //Serial.println(getEncoderAngle());
+    if(getEncoderAngle() > 1){
+      seekHome();
+    }
+  }
+
+  EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
+  delay(10);
+
   //handle button state
   void buttonStateHandle();
 
-  
+  if(CurrentDisplay==0)
+  {
+    drawThrottle(40,40,String(100));
+  }
+
   if(CurrentDisplay==1)
   {
     InteractiveMenu();
   }
+
+ 
+
 
 }
 
 void buttonStateHandle()
 {
     //hold button check
-  if (digitalRead(buttonPin) == LOW) 
+  if (digitalRead(BUTTONPIN) == LOW) 
   {
     if (!buttonHeld) {
       buttonHeld = true;
@@ -160,14 +208,6 @@ void InteractiveMenu()
   drawMenu();   
   }
 }
-
-
-  /*
-  if(displayMenu == 0)
-  {
-    drawThrottle(40,40,String(100));
-  } 
-  */
 
 void drawMenu() {
 
@@ -270,6 +310,108 @@ do {
   u8g.print(message);
   } while (u8g.nextPage());
 //u8g.drawBox(10, 50, 100 ,50);
+}
+
+void turnToAngle(int angle_to_move)
+{
+    if(angle_to_move < 0){
+      angle_to_move = 0;
+    }
+
+    float currentAngle = getEncoderAngle();
+    v = map(abs(angle_to_move), 0, 360, 0, 600);
+    int stepsToMove = (v - previous) * MICROSTEPS;
+       
+    stepper.move(stepsToMove);
+    currentPosition += stepsToMove;
+
+    lastInputAngle = angle_to_move;
+    previous = v;
+
+    float finalAngle = getEncoderAngle();
+
+    Serial.print("Target: "); Serial.print(angle_to_move);
+    Serial.print(" | Reached: "); Serial.println(finalAngle);
+
+}
+
+bool EncoderResponseCheck(int targetAngle, float currentAngle)
+{
+    //float error = targetAngle - currentAngle;
+
+    float errorAngle = targetAngle - currentAngle;
+
+
+    if (errorAngle > 180) errorAngle -= 360;
+    if (errorAngle < -180) errorAngle += 360;
+
+    if (!movementInProgress) {
+      movementInProgress = true;
+      movementStartTime = millis();
+      //error = false;
+    }
+
+    // Check if angle difference is within tolerance
+    if (abs(errorAngle) <= angleTolerance) {
+        movementInProgress = false;
+        //error = false;
+        //Serial.println("Movement complete.");
+        return;
+    }
+
+    // Check timeout
+    if (millis() - movementStartTime > maxWaitTime) {
+        movementInProgress = false;
+        error = true;
+        Serial.println("ERROR: Encoder failed to reach target angle in time!");
+        return;
+    }
+
+}
+
+int GetPedalSmoothInput(float minAlpha,float maxAlpha)
+{
+  int currentReading = analogRead(INPUTPEDALPIN);
+  int input_angle = map(currentReading, 75, 472, 0, max_angle);
+  int rawValue = input_angle;
+  float difference = abs(rawValue - smoothedValue);
+  // Normalize difference (0–1023) to a 0–1 scale
+  float normDiff = constrain(difference / max_angle, 0, 1);
+  // Interpolate alpha between min and max based on difference
+  float alpha = minAlpha + (maxAlpha - minAlpha) * normDiff;
+  // Apply smoothing
+  smoothedValue = alpha * rawValue + (1 - alpha) * smoothedValue;
+  return round(smoothedValue);
+}
+
+float getEncoderAngle() {
+  int raw = analogRead(ENCODERPIN);
+  return map(raw, 0, 1023, 0, 360);
+}
+
+bool seekHome() {
+  Serial.println("Seeking home position...");
+  float angle = getEncoderAngle();
+
+  while (!(angle < HOME_TOLERANCE_DEG || angle > (360 - HOME_TOLERANCE_DEG))) {
+    if(angle > 0 && angle < 180){
+      stepper.move(-1);  // Move slowly backward
+    }
+    else{
+      stepper.move(1);  // Move slowly backward
+
+    }
+    currentPosition--;
+    delay(5);
+    angle = getEncoderAngle();
+    Serial.print("Current Angle: ");
+    Serial.println(angle);
+  }
+
+  Serial.println("Home position reached.");
+  currentPosition = 0;
+  return true;
+  
 }
 
 

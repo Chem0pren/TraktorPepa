@@ -41,37 +41,6 @@ const int angleTolerance = 10;       // Degrees tolerance
 
 bool init_done = false;
 
-float getEncoderAngle() {
-  int raw = analogRead(encoderPin);
-  return map(raw, 0, 1023, 0, 360);
-}
-
-bool seekHome() {
-  Serial.println("Seeking home position...");
-  float angle = getEncoderAngle();
-
-  while (!(angle < HOME_TOLERANCE_DEG || angle > (360 - HOME_TOLERANCE_DEG))) {
-    if(angle > 0 && angle < 180){
-      stepper.move(-1);  // Move slowly backward
-    }
-    else{
-      stepper.move(1);  // Move slowly backward
-
-    }
-    currentPosition--;
-    delay(5);
-    angle = getEncoderAngle();
-    Serial.print("Current Angle: ");
-    Serial.println(angle);
-  }
-
-  Serial.println("Home position reached.");
-  currentPosition = 0;
-  return true;
-  
-}
-
-
 void setup() {
  // pinMode(10, OUTPUT);
   //pinMode(9, OUTPUT);
@@ -183,4 +152,34 @@ int GetPedalSmoothInput(float minAlpha,float maxAlpha)
 
   return round(smoothedValue);
 
+}
+
+float getEncoderAngle() {
+  int raw = analogRead(encoderPin);
+  return map(raw, 0, 1023, 0, 360);
+}
+
+bool seekHome() {
+  Serial.println("Seeking home position...");
+  float angle = getEncoderAngle();
+
+  while (!(angle < HOME_TOLERANCE_DEG || angle > (360 - HOME_TOLERANCE_DEG))) {
+    if(angle > 0 && angle < 180){
+      stepper.move(-1);  // Move slowly backward
+    }
+    else{
+      stepper.move(1);  // Move slowly backward
+
+    }
+    currentPosition--;
+    delay(5);
+    angle = getEncoderAngle();
+    Serial.print("Current Angle: ");
+    Serial.println(angle);
+  }
+
+  Serial.println("Home position reached.");
+  currentPosition = 0;
+  return true;
+  
 }
