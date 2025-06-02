@@ -33,6 +33,12 @@ float smoothedValue = 0;
 float minAlpha = 0.1;  // Smoothing when changes are small
 float maxAlpha = 0.8;   // Smoothing when changes are large
 
+bool error = false;                 // Global or static error flag
+unsigned long movementStartTime = 0;
+bool movementInProgress = false;
+const unsigned long maxWaitTime = 3000; // Max wait in ms
+const int angleTolerance = 10;       // Degrees tolerance
+
 float getEncoderAngle() {
   int raw = analogRead(encoderPin);
   return map(raw, 0, 1023, 0, 360);
@@ -43,7 +49,7 @@ void seekHome() {
   float angle = getEncoderAngle();
 
   while (!(angle < HOME_TOLERANCE_DEG || angle > (360 - HOME_TOLERANCE_DEG))) {
-    if(angle > 0 && angle < 100){
+    if(angle > 0 && angle < 180){
       stepper.move(-1);  // Move slowly backward
     }
     else{
@@ -124,8 +130,9 @@ void loop() {
   // Apply smoothing
   smoothedValue = alpha * rawValue + (1 - alpha) * smoothedValue;
 
-
-  turnToAngle(round(smoothedValue));
+  if(!error){
+    turnToAngle(round(smoothedValue));
+  }
 
   //enshure always zero when idle
   if(round(smoothedValue) == 0 &&  stepper.getStepsCompleted() == 0)
@@ -135,6 +142,9 @@ void loop() {
     seekHome();
     }
   }
+
+  EncoderResponseCheck(smoothedValue,getEncoderAngle());
+
 
   delay(10);
 }
@@ -147,19 +157,90 @@ void turnToAngle(int angle_to_move)
     }
     // Normal movement based on potentiometer
   //if (abs(angle_to_move - lastInputAngle) > tolerance) {
+    float currentAngle = getEncoderAngle();
     v = map(abs(angle_to_move), 0, 360, 0, 600);
     int stepsToMove = (v - previous) * MICROSTEPS;
 
+   // float errorAngle = angle_to_move - currentAngle;
+
+
+
+    
+  
+    
+
+    // Normalize errorAngle to [-180, 180]
+        
     stepper.move(stepsToMove);
     currentPosition += stepsToMove;
 
     lastInputAngle = angle_to_move;
     previous = v;
 
+    
+
     float finalAngle = getEncoderAngle();
+
+
     Serial.print("Target: "); Serial.print(angle_to_move);
     Serial.print(" | Reached: "); Serial.println(finalAngle);
   //}
 }
 
+bool waitForEncoderAngle(int targetAngle, int tolerance, unsigned long timeoutMs) {
+  unsigned long startTime = millis();
+
+  while (millis() - startTime < timeoutMs) {
+    float currentAngle = getEncoderAngle();
+
+    // Normalize difference
+    float error = targetAngle - currentAngle;
+    if (error > 180) error -= 360;
+    if (error < -180) error += 360;
+
+    if (abs(error) <= tolerance) {
+      Serial.println("Encoder reached target angle.");
+      return true; // Success
+    }
+
+    delay(1); // Prevent busy-waiting
+  }
+
+  Serial.println("Timeout: Encoder did not reach target angle.");
+  return false; // Failed to reach in time
+}
+
+bool EncoderResponseCheck(int targetAngle, float currentAngle)
+{
+    //float error = targetAngle - currentAngle;
+
+    float errorAngle = targetAngle - currentAngle;
+
+
+    if (errorAngle > 180) errorAngle -= 360;
+    if (errorAngle < -180) errorAngle += 360;
+
+    if (!movementInProgress) {
+      movementInProgress = true;
+      movementStartTime = millis();
+      //error = false;
+    }
+
+    // Check if angle difference is within tolerance
+    if (abs(errorAngle) <= angleTolerance) {
+        movementInProgress = false;
+        //error = false;
+        //Serial.println("Movement complete.");
+        return;
+    }
+
+    // Check timeout
+    if (millis() - movementStartTime > maxWaitTime) {
+        movementInProgress = false;
+        error = true;
+        Serial.println("ERROR: Encoder failed to reach target angle in time!");
+        return;
+    }
+
+}
 
