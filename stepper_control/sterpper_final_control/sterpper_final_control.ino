@@ -39,12 +39,14 @@ bool movementInProgress = false;
 const unsigned long maxWaitTime = 3000; // Max wait in ms
 const int angleTolerance = 10;       // Degrees tolerance
 
+bool init_done = false;
+
 float getEncoderAngle() {
   int raw = analogRead(encoderPin);
   return map(raw, 0, 1023, 0, 360);
 }
 
-void seekHome() {
+bool seekHome() {
   Serial.println("Seeking home position...");
   float angle = getEncoderAngle();
 
@@ -59,12 +61,27 @@ void seekHome() {
     currentPosition--;
     delay(5);
     angle = getEncoderAngle();
+
     Serial.print("Current Angle: ");
     Serial.println(angle);
+
+    /*
+    if(EncoderResponseCheck(0,getEncoderAngle()))
+    {
+      Serial.println("Errro");
+      error = true;
+      return false;
+      //break;
+    }
+    */
+
   }
 
+  //if(!error){
   Serial.println("Home position reached.");
   currentPosition = 0;
+  return true;
+  //}
 }
 
 void correctPos() {
@@ -100,11 +117,19 @@ void setup() {
   stepper.setRPM(200);
   stepper.setMicrostep(MICROSTEPS);
 
-  seekHome();  // Home at startup
+  //seekHome();  // Home at startup
 
 }
 
 void loop() {
+
+  if(!init_done){
+    if(seekHome()){
+      init_done = true;
+    }
+
+
+  }
 
   //digitalWrite(10, HIGH);
   //digitalWrite(9, HIGH);
@@ -139,7 +164,7 @@ void loop() {
   {
     //Serial.println(getEncoderAngle());
     if(getEncoderAngle() > 1){
-    seekHome();
+   // seekHome();
     }
   }
 
