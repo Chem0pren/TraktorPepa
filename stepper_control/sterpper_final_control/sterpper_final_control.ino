@@ -61,53 +61,15 @@ bool seekHome() {
     currentPosition--;
     delay(5);
     angle = getEncoderAngle();
-
     Serial.print("Current Angle: ");
     Serial.println(angle);
-
-    /*
-    if(EncoderResponseCheck(0,getEncoderAngle()))
-    {
-      Serial.println("Errro");
-      error = true;
-      return false;
-      //break;
-    }
-    */
-
   }
 
-  //if(!error){
   Serial.println("Home position reached.");
   currentPosition = 0;
   return true;
-  //}
+  
 }
-
-void correctPos() {
-  Serial.println("Seeking home position...");
-  float angle = getEncoderAngle();
-
-  while (!(angle < HOME_TOLERANCE_DEG || angle > (360 - HOME_TOLERANCE_DEG))) {
-    if(angle > 0 && angle < 100){
-      stepper.move(-1);  // Move slowly backward
-    }
-    else{
-      stepper.move(1);  // Move slowly backward
-
-    }
-    currentPosition--;
-    delay(5);
-    angle = getEncoderAngle();
-    Serial.print("Current Angle: ");
-    Serial.println(angle);
-  }
-
-  Serial.println("Home position reached.");
-  currentPosition = 0;
-}
-
-
 
 
 void setup() {
@@ -116,9 +78,6 @@ void setup() {
   Serial.begin(9600);
   stepper.setRPM(200);
   stepper.setMicrostep(MICROSTEPS);
-
-  //seekHome();  // Home at startup
-
 }
 
 void loop() {
@@ -126,41 +85,16 @@ void loop() {
   if(!init_done){
     if(seekHome()){
       init_done = true;
-      
     }
-
-
   }
 
-  //digitalWrite(10, HIGH);
-  //digitalWrite(9, HIGH);
-
-  int currentReading = analogRead(inputPin);
-  
-  //if something happend with cable
- 
-
-
-  int input_angle = map(currentReading, 75, 472, 0, 90);
-
-  int rawValue = input_angle;
-
-  float difference = abs(rawValue - smoothedValue);
-
-  // Normalize difference (0–1023) to a 0–1 scale
-  float normDiff = constrain(difference / 90.0, 0, 1);
-
-  // Interpolate alpha between min and max based on difference
-  float alpha = minAlpha + (maxAlpha - minAlpha) * normDiff;
-
-  // Apply smoothing
-  smoothedValue = alpha * rawValue + (1 - alpha) * smoothedValue;
+  int smoothedPedalValue = GetPedalSmoothInput();
 
   if(!error){
-    turnToAngle(round(smoothedValue));
+    turnToAngle(smoothedPedalValue);
   }
 
-  //enshure always zero when idle
+  //ensure always zero when idle
   if(round(smoothedValue) == 0 &&  stepper.getStepsCompleted() == 0)
   {
     //Serial.println(getEncoderAngle());
@@ -170,8 +104,6 @@ void loop() {
   }
 
   EncoderResponseCheck(smoothedValue,getEncoderAngle());
-
-
   delay(10);
 }
 
@@ -181,22 +113,11 @@ void turnToAngle(int angle_to_move)
     if(angle_to_move < 0){
       angle_to_move = 0;
     }
-    // Normal movement based on potentiometer
-  //if (abs(angle_to_move - lastInputAngle) > tolerance) {
+
     float currentAngle = getEncoderAngle();
     v = map(abs(angle_to_move), 0, 360, 0, 600);
     int stepsToMove = (v - previous) * MICROSTEPS;
-
-   // float errorAngle = angle_to_move - currentAngle;
-
-
-
-    
-  
-    
-
-    // Normalize errorAngle to [-180, 180]
-        
+       
     stepper.move(stepsToMove);
     currentPosition += stepsToMove;
 
@@ -210,30 +131,7 @@ void turnToAngle(int angle_to_move)
 
     Serial.print("Target: "); Serial.print(angle_to_move);
     Serial.print(" | Reached: "); Serial.println(finalAngle);
-  //}
-}
 
-bool waitForEncoderAngle(int targetAngle, int tolerance, unsigned long timeoutMs) {
-  unsigned long startTime = millis();
-
-  while (millis() - startTime < timeoutMs) {
-    float currentAngle = getEncoderAngle();
-
-    // Normalize difference
-    float error = targetAngle - currentAngle;
-    if (error > 180) error -= 360;
-    if (error < -180) error += 360;
-
-    if (abs(error) <= tolerance) {
-      Serial.println("Encoder reached target angle.");
-      return true; // Success
-    }
-
-    delay(1); // Prevent busy-waiting
-  }
-
-  Serial.println("Timeout: Encoder did not reach target angle.");
-  return false; // Failed to reach in time
 }
 
 bool EncoderResponseCheck(int targetAngle, float currentAngle)
@@ -270,3 +168,19 @@ bool EncoderResponseCheck(int targetAngle, float currentAngle)
 
 }
 
+int GetPedalSmoothInput()
+{
+  int currentReading = analogRead(inputPin);
+  int input_angle = map(currentReading, 75, 472, 0, 90);
+  int rawValue = input_angle;
+  float difference = abs(rawValue - smoothedValue);
+  // Normalize difference (0–1023) to a 0–1 scale
+  float normDiff = constrain(difference / 90.0, 0, 1);
+  // Interpolate alpha between min and max based on difference
+  float alpha = minAlpha + (maxAlpha - minAlpha) * normDiff;
+  // Apply smoothing
+  smoothedValue = alpha * rawValue + (1 - alpha) * smoothedValue;
+
+  return round(smoothedValue);
+
+}
