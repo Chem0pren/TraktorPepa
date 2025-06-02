@@ -95,7 +95,7 @@ void loop() {
   }
 
   //ensure always zero when idle
-  if(round(smoothedValue) == 0 &&  stepper.getStepsCompleted() == 0)
+  if(smoothedPedalValue) == 0 &&  stepper.getStepsCompleted() == 0)
   {
     //Serial.println(getEncoderAngle());
     if(getEncoderAngle() > 1){
@@ -103,7 +103,7 @@ void loop() {
     }
   }
 
-  EncoderResponseCheck(smoothedValue,getEncoderAngle());
+  EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
   delay(10);
 }
 
@@ -168,7 +168,7 @@ bool EncoderResponseCheck(int targetAngle, float currentAngle)
 
 }
 
-int GetPedalSmoothInput()
+int GetPedalSmoothInput(float minAlpha,float maxAlpha)
 {
   int currentReading = analogRead(inputPin);
   int input_angle = map(currentReading, 75, 472, 0, 90);
