@@ -126,6 +126,7 @@ void loop() {
   if(!init_done){
     if(seekHome()){
       init_done = true;
+      
     }
 
 
