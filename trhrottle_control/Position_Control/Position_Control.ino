@@ -19,7 +19,7 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
 #define INPUTPEDALPIN A0 
 #define ENCODERPIN A6
 #define BUTTONPIN 2
-#define STEPS_PER_REV 100
+
 
 A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
 
@@ -91,11 +91,14 @@ void setup() {
   Serial.println("read from EEPROM.");
   delay(1000); // Short delay before reading
   //load EEPROM data
- // loadFromEEPROM();
+  loadFromEEPROM();
 
 }
 
 void loop() {
+
+  //handle button state
+  buttonStateHandle();
   
   //jostick read
   yVal = analogRead(pinY);
@@ -125,19 +128,23 @@ void loop() {
   EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
   delay(10);
 
-  //handle button state
-  void buttonStateHandle();
+  
 
   if(CurrentDisplay==0)
   {
-    drawThrottle(40,40,String(100));
+    drawThrottle(40,40,String(smoothedPedalValue));
   }
 
   if(CurrentDisplay==1)
   {
-    InteractiveMenu();
+   // InteractiveMenu();
+    drawInfo();
   }
 
+  if(CurrentDisplay==2)
+  {
+    // print error
+  }
  
 
 
@@ -145,9 +152,11 @@ void loop() {
 
 void buttonStateHandle()
 {
-    //hold button check
+  
+  //hold button check
   if (digitalRead(BUTTONPIN) == LOW) 
   {
+    Serial.println("button on");
     if (!buttonHeld) {
       buttonHeld = true;
       buttonHoldStart = millis();
@@ -173,25 +182,24 @@ void buttonStateHandle()
 
 }
 
-
 void InteractiveMenu()
 {
-  if (millis() - lastMoveTime > debounceDelay) 
-  {
+  
+  
     // Navigation
     if (yVal < 400) 
     {
       selectedItem--;
       if (selectedItem < 0) selectedItem = menuLength - 1;
       lastMoveTime = millis();
-      // drawMenu();   
+      drawMenu();   
       
     } else if (yVal > 600) 
     {
       selectedItem++;
       if (selectedItem >= menuLength) selectedItem = 0;
       lastMoveTime = millis();
-      // drawMenu();   
+      drawMenu();   
       
     }
 
@@ -199,16 +207,16 @@ void InteractiveMenu()
     if (xVal < 400) {
       adjustValue(-1);
       lastMoveTime = millis();
-      // drawMenu();   
+      drawMenu();   
       
     } else if (xVal > 600) {
       adjustValue(1);
       lastMoveTime = millis();
-      // drawMenu();  
+      drawMenu();  
     }
   
-  drawMenu();   
-  }
+ // drawMenu();   
+  
 }
 
 void drawMenu() {
@@ -236,19 +244,6 @@ void drawMenu() {
         u8g.print(*menu[i].value, 2);
       }
     }
-
-    u8g.setPrintPos(2, 50);
-    u8g.print("PedalAngle: ");
-    u8g.print(String(smoothedPedalValue));
-
-    u8g.setPrintPos(2, 57);
-   // u8g.print("PedalInput: ");
-   // u8g.print(String(PedalInput1));
-
-    u8g.setPrintPos(2, 63);
-    u8g.print("current angle: ");
-    u8g.print(String(getEncoderAngle()));
-
   } while (u8g.nextPage());
 }
 
@@ -292,13 +287,19 @@ u8g.print(message);
 }
 
 
-void drawInfo(int pos_x,int pos_y,String message)
+
+void drawInfo()
 {
+u8g.setFont(u8g_font_04b_03br);
 u8g.firstPage();
 do {
-  u8g.setFont(u8g_font_helvB24n);
-  u8g.setPrintPos(pos_x, pos_y);
-  u8g.print(message);
+   u8g.setPrintPos(2, 50);
+    u8g.print("pedal vstup: ");
+    u8g.print(String(smoothedPedalValue));
+
+   // u8g.setPrintPos(2, 57);
+   // u8g.print("uhel encoder: ");
+   // u8g.print(String(getEncoderAngle()));
   } while (u8g.nextPage());
 }
 
