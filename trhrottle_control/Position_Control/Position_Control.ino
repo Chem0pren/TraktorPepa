@@ -1,8 +1,18 @@
-#include <U8glib.h>
+// this is final code
+
 #include <EEPROM.h>
 #include "A4988.h"
+#include <U8g2lib.h>
 
-U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
+#ifdef U8X8_HAVE_HW_I2C
+#include <Wire.h>
+#endif
+
+//U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0);
+U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);   // All Boards without Reset of the Display
+//U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0); /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);   // All Boards without Reset of the Display
+
+//U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
 
 #define pinY A2
 #define pinX A3
@@ -14,7 +24,7 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
 #define MS2 6
 #define MS3 5
 #define GEAR_RATIO 3.0
-#define MICROSTEPS 2
+#define MICROSTEPS 4
 #define STEPPPER_ON 10
 #define INPUTPEDALPIN A0 
 #define ENCODERPIN A6
@@ -22,6 +32,9 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
 
 
 A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
+
+unsigned long lastDisplayUpdate = 0;
+const unsigned long displayInterval = 10; // ms
 
 //current jostick value
 int yVal = 0;
@@ -56,7 +69,7 @@ bool buttonHeld = false;
 const unsigned long holdTime = 3000; // 3 seconds
 
 //display state
-int CurrentDisplay = 1;
+int CurrentDisplay = 0;
 
 unsigned long lastMoveTime = 0;
 const int debounceDelay = 500;
@@ -83,11 +96,13 @@ int selectedItem = 0;
 int smoothedPedalValue = 0;
 
 void setup() {
+  u8g2.begin();
+
   stepper.setRPM(200);
   stepper.setMicrostep(MICROSTEPS);
   pinMode(BUTTONPIN, INPUT_PULLUP);
   Serial.begin(9600);
-  u8g.setColorIndex(1); // display draws with pixel on
+  //u8g.setColorIndex(1); // display draws with pixel on
   Serial.println("read from EEPROM.");
   delay(1000); // Short delay before reading
   //load EEPROM data
@@ -126,19 +141,30 @@ void loop() {
   }
 
   EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
-  delay(10);
+  //delay(10);
 
-  
+  // int lastSmoothedval;
+  // static String lastMessage = String(smoothedPedalValue);
+  // String message;
+  // if (smoothedPedalValue != lastSmoothedval) {
+  //   drawThrottle(40, 40, String(smoothedPedalValue));
+  // smoothedPedalValue = lastSmoothedval;
+  // }
 
-  if(CurrentDisplay==0)
-  {
-    drawThrottle(40,40,String(smoothedPedalValue));
+  //drawThrottle(40,40,String(smoothedPedalValue));
+
+ 
+  if (millis() - lastDisplayUpdate > displayInterval) {
+    lastDisplayUpdate = millis();
+    if (CurrentDisplay == 0) {
+      drawThrottle(40, 40, String(smoothedPedalValue));
+    }
   }
 
   if(CurrentDisplay==1)
   {
    // InteractiveMenu();
-    drawInfo();
+    //drawInfo();
   }
 
   if(CurrentDisplay==2)
@@ -192,14 +218,14 @@ void InteractiveMenu()
       selectedItem--;
       if (selectedItem < 0) selectedItem = menuLength - 1;
       lastMoveTime = millis();
-      drawMenu();   
+      //drawMenu();   
       
     } else if (yVal > 600) 
     {
       selectedItem++;
       if (selectedItem >= menuLength) selectedItem = 0;
       lastMoveTime = millis();
-      drawMenu();   
+      //drawMenu();   
       
     }
 
@@ -207,45 +233,44 @@ void InteractiveMenu()
     if (xVal < 400) {
       adjustValue(-1);
       lastMoveTime = millis();
-      drawMenu();   
+     // drawMenu();   
       
     } else if (xVal > 600) {
       adjustValue(1);
       lastMoveTime = millis();
-      drawMenu();  
+     // drawMenu();  
     }
   
  // drawMenu();   
   
 }
 
-void drawMenu() {
+// void drawMenu() {
 
-  u8g.setFont(u8g_font_04b_03br);
+//   u8g2.setFont(u8g_font_04b_03br);
  
-  u8g.firstPage();
-  do {
-    for (int i = 0; i < menuLength; i++) {
-      int y = 7 + i * 7;
-      if (i == selectedItem) {
-        //u8g.drawFrame(0, y - 10, 100, 10);
+
+//     for (int i = 0; i < menuLength; i++) {
+//       int y = 7 + i * 7;
+//       if (i == selectedItem) {
+//         //u8g.drawFrame(0, y - 10, 100, 10);
         
-        //u8g.setColorIndex(0); // text in black
-        u8g.setPrintPos(2, y);
-        u8g.print(">");
-        u8g.print(menu[i].name);
-        u8g.print(": ");
-        u8g.print(*menu[i].value, 2);
-        //u8g.setColorIndex(1); // reset to white
-      } else {
-        u8g.setPrintPos(2, y);
-        u8g.print(menu[i].name);
-        u8g.print(": ");
-        u8g.print(*menu[i].value, 2);
-      }
-    }
-  } while (u8g.nextPage());
-}
+//         //u8g.setColorIndex(0); // text in black
+//         u8g2.setPrintPos(2, y);
+//         u8g2.print(">");
+//         u8g2.print(menu[i].name);
+//         u8g2.print(": ");
+//         u8g2.print(*menu[i].value, 2);
+//         //u8g.setColorIndex(1); // reset to white
+//       } else {
+//         u8g2.setPrintPos(2, y);
+//         u8g2.print(menu[i].name);
+//         u8g2.print(": ");
+//         u8g2.print(*menu[i].value, 2);
+//       }
+//     }
+
+// }
 
 // === Adjust Current Value ===
 void adjustValue(int direction) {
@@ -279,40 +304,41 @@ float readFloatFromEEPROM(int address) {
 }
 
 //DISPLAY
-void drawServoInfo(int pos_x,int pos_y,String message)
-{
-u8g.setFont(u8g_font_04b_03b);
-u8g.setPrintPos(pos_x, pos_y);
-u8g.print(message);
-}
+// void drawServoInfo(int pos_x,int pos_y,String message)
+// {
+// u8g2.setFont(u8g_font_04b_03b);
+// u8g2.setPrintPos(pos_x, pos_y);
+// u8g2.print(message);
+// }
 
 
 
-void drawInfo()
-{
-u8g.setFont(u8g_font_04b_03br);
-u8g.firstPage();
-do {
-   u8g.setPrintPos(2, 50);
-    u8g.print("pedal vstup: ");
-    u8g.print(String(smoothedPedalValue));
+// void drawInfo()
+// {
+// u8g2.setFont(u8g_font_04b_03br);
 
-   // u8g.setPrintPos(2, 57);
-   // u8g.print("uhel encoder: ");
-   // u8g.print(String(getEncoderAngle()));
-  } while (u8g.nextPage());
-}
+//    u8g2.setPrintPos(2, 50);
+//     u8g2.print("pedal vstup: ");
+//     u8g2.print(String(smoothedPedalValue));
+
+//    // u8g.setPrintPos(2, 57);
+//    // u8g.print("uhel encoder: ");
+//    // u8g.print(String(getEncoderAngle()));
+ 
+// }
 
 
 void drawThrottle(int pos_x,int pos_y,String message)
 {
-u8g.firstPage();
-do {
-  u8g.setFont(u8g_font_helvB24n);
-  u8g.setPrintPos(pos_x, pos_y);
-  u8g.print(message);
-  } while (u8g.nextPage());
-//u8g.drawBox(10, 50, 100 ,50);
+  u8g2.firstPage();
+  do {
+   
+    u8g2.setFont(u8g2_font_helvB24_tr);
+    //u8g2.drawStr(0,20,message.c_str());
+    u8g2.drawStr(pos_x, pos_y, message.c_str());
+  } while ( u8g2.nextPage() );
+  //delay(1000);
+                     //    Transfer internal memory to the display
 }
 
 void turnToAngle(int angle_to_move)
