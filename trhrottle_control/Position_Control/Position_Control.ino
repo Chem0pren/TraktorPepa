@@ -69,7 +69,7 @@ bool buttonHeld = false;
 const unsigned long holdTime = 3000; // 3 seconds
 
 //display state
-int CurrentDisplay = 0;
+int CurrentDisplay = 1;
 
 unsigned long lastMoveTime = 0;
 const int debounceDelay = 500;
@@ -79,6 +79,12 @@ struct MenuItem {
   const char* name;
   float* value;
   float step;
+};
+
+// Add this to send runtime data like throttle and errors
+struct StatusInfo {
+  float throttleValue;
+  const char* errorMessage; // nullptr or "" if no error
 };
 
 //menu list
@@ -108,6 +114,12 @@ void setup() {
   //load EEPROM data
   loadFromEEPROM();
 
+    // Global status info (can be updated dynamically)
+  StatusInfo status = {
+    0.0,      // throttleValue
+    nullptr   // errorMessage (null = no error)
+  };
+
 }
 
 void loop() {
@@ -119,16 +131,16 @@ void loop() {
   yVal = analogRead(pinY);
   xVal = analogRead(pinX);
 
-  if(!init_done){
-    if(seekHome()){
-      init_done = true;
-    }
-  }
+  // if(!init_done){
+  //   if(seekHome()){
+  //     init_done = true;
+  //   }
+  // }
 
   smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
 
   if(!error){
-    turnToAngle(smoothedPedalValue);
+   // turnToAngle(smoothedPedalValue);
   }
 
   //ensure always zero when idle
@@ -136,11 +148,11 @@ void loop() {
   {
     //Serial.println(getEncoderAngle());
     if(getEncoderAngle() > 1){
-      seekHome();
+     // seekHome();
     }
   }
 
-  EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
+  //EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
   //delay(10);
 
   // int lastSmoothedval;
@@ -157,13 +169,13 @@ void loop() {
   if (millis() - lastDisplayUpdate > displayInterval) {
     lastDisplayUpdate = millis();
     if (CurrentDisplay == 0) {
-      drawThrottle(40, 40, String(smoothedPedalValue));
+      //drawThrottle(40, 40, String(smoothedPedalValue));
     }
   }
 
   if(CurrentDisplay==1)
   {
-   // InteractiveMenu();
+    InteractiveMenu();
     //drawInfo();
   }
 
@@ -210,22 +222,20 @@ void buttonStateHandle()
 
 void InteractiveMenu()
 {
-  
-  
     // Navigation
     if (yVal < 400) 
     {
       selectedItem--;
       if (selectedItem < 0) selectedItem = menuLength - 1;
       lastMoveTime = millis();
-      //drawMenu();   
+      sendMenu();   
       
     } else if (yVal > 600) 
     {
       selectedItem++;
       if (selectedItem >= menuLength) selectedItem = 0;
       lastMoveTime = millis();
-      //drawMenu();   
+      sendMenu();   
       
     }
 
@@ -233,17 +243,50 @@ void InteractiveMenu()
     if (xVal < 400) {
       adjustValue(-1);
       lastMoveTime = millis();
-     // drawMenu();   
+      sendMenu();   
       
     } else if (xVal > 600) {
       adjustValue(1);
       lastMoveTime = millis();
-     // drawMenu();  
+      sendMenu();  
     }
   
- // drawMenu();   
-  
+  //sendMenu();   
+  delay(200);
 }
+
+void sendMenu() {
+  if (error) {
+    Serial.print("ERROR: ");
+    Serial.println(error);
+    return; // Skip showing menu if error screen active
+  }
+
+  //if (CurrentDisplay = 1){
+    Serial.println("Menu:");
+    for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
+      if (i == selectedItem) {
+        Serial.print("> ");   // add cursor mark before selected item
+      } else {
+        Serial.print("  ");   // indent others for alignment
+      }
+
+      Serial.print(menu[i].name);
+      Serial.print(":");
+      Serial.print(*menu[i].value, 4);
+      Serial.print(":");
+      //Serial.print(menu[i].step, 4);
+      Serial.print("\n");
+    }
+  //}
+  //if (CurrentDisplay = 0){
+    Serial.print("Throttle: ");
+    Serial.println(smoothedPedalValue, 2);
+  //}
+    Serial.print("END\n");
+    delay(10);
+}
+
 
 // void drawMenu() {
 
@@ -328,18 +371,18 @@ float readFloatFromEEPROM(int address) {
 // }
 
 
-void drawThrottle(int pos_x,int pos_y,String message)
-{
-  u8g2.firstPage();
-  do {
+// void drawThrottle(int pos_x,int pos_y,String message)
+// {
+//   u8g2.firstPage();
+//   do {
    
-    u8g2.setFont(u8g2_font_helvB24_tr);
-    //u8g2.drawStr(0,20,message.c_str());
-    u8g2.drawStr(pos_x, pos_y, message.c_str());
-  } while ( u8g2.nextPage() );
-  //delay(1000);
-                     //    Transfer internal memory to the display
-}
+//     u8g2.setFont(u8g2_font_helvB24_tr);
+//     //u8g2.drawStr(0,20,message.c_str());
+//     u8g2.drawStr(pos_x, pos_y, message.c_str());
+//   } while ( u8g2.nextPage() );
+//   //delay(1000);
+//                      //    Transfer internal memory to the display
+// }
 
 void turnToAngle(int angle_to_move)
 {
