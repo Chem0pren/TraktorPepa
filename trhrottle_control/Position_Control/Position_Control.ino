@@ -34,7 +34,7 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SD
 A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
 
 unsigned long lastDisplayUpdate = 0;
-const unsigned long displayInterval = 10; // ms
+const unsigned long displayInterval = 500; // ms
 
 //current jostick value
 int yVal = 0;
@@ -69,7 +69,7 @@ bool buttonHeld = false;
 const unsigned long holdTime = 3000; // 3 seconds
 
 //display state
-int CurrentDisplay = 1;
+int CurrentDisplay = 0;
 
 unsigned long lastMoveTime = 0;
 const int debounceDelay = 500;
@@ -169,7 +169,7 @@ void loop() {
   if (millis() - lastDisplayUpdate > displayInterval) {
     lastDisplayUpdate = millis();
     if (CurrentDisplay == 0) {
-      //drawThrottle(40, 40, String(smoothedPedalValue));
+      SendValues();
     }
   }
 
@@ -255,12 +255,26 @@ void InteractiveMenu()
   delay(200);
 }
 
+
+void SendValues()
+{
+    Serial.print("DISPLAY:");
+    Serial.println(CurrentDisplay);
+    Serial.print("THROTTLE:");
+    Serial.println(smoothedPedalValue);
+    Serial.print("END\n");
+    delay(100);
+}
+
+
 void sendMenu() {
   if (error) {
     Serial.print("ERROR: ");
     Serial.println(error);
     return; // Skip showing menu if error screen active
   }
+    Serial.println("DISPLAY:");
+    Serial.print(CurrentDisplay);
 
   //if (CurrentDisplay = 1){
     Serial.println("Menu:");
@@ -382,7 +396,7 @@ float readFloatFromEEPROM(int address) {
 //   } while ( u8g2.nextPage() );
 //   //delay(1000);
 //                      //    Transfer internal memory to the display
-// }
+// }/
 
 void turnToAngle(int angle_to_move)
 {
