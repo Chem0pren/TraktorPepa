@@ -3,7 +3,7 @@
 
 U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
 
-const int maxLines = 7;  // Max lines we can display (7 * 8px = 56px + 8px for throttle)
+const int maxLines = 6;  // Max lines we can display (7 * 8px = 56px + 8px for throttle)
 String menuLines[maxLines];
 int lineCount = 0;
 
@@ -11,6 +11,9 @@ String currentError = "";
 int currentThrottle = 0;
 
 bool hasReceivedData = false;
+
+int displayDrawState = 0;
+int previousDisplayDrawState = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -27,27 +30,53 @@ void loop() {
     String line = Serial.readStringUntil('\n');
     line.trim();
 
-    Serial.print("DEBUG: Received line: ");
-    Serial.println(line);
+    if(previousDisplayDrawState != displayDrawState){
+      u8g2.clearDisplay();
+      u8g2.clearBuffer();
+    }
 
     if (line == "END") {
-      
+        if(displayDrawState == 1)
+        {
+        displayMenu();
+        lineCount = 0;
+        }
+
       }
       else if (line.startsWith("THROTTLE:")) {
-      currentThrottle = line.substring(9).toInt();
-      
-      Serial.print("DEBUG: Throttle updated to ");
-      Serial.println(currentThrottle,2);
-      //drawThrottle(40, 40, String(currentThrottle,2));
+
+        //just for obtain throttle value
+        currentThrottle = line.substring(9).toInt();
+       // Serial.println(currentThrottle);
+        
 
       }
       else if (line.startsWith("DISPLAY:")) {
-      Serial.println("DEBUG: DISPLAY=0 received, drawing throttle only");
-      //currentThrottle = line.substring(9).toFloat();
-      drawThrottle(40, 40, String(currentThrottle));
+        displayDrawState = 0;
+        if(displayDrawState == 0){
+        //Serial.println("DEBUG:draw throttle"); 
+        drawThrottle(40, 40, String(currentThrottle));
+         }
+      }
+      else if (line.startsWith("MENU:")) {
+        displayDrawState = 1;
+    
+      }
+
+      else if(displayDrawState == 1) {
+      if (lineCount < maxLines) {
+        menuLines[lineCount++] = line;
+      } else {
+       // Serial.println("DEBUG: Menu line count exceeded maxLines");     
+      }
+
     }
   }
+  previousDisplayDrawState = displayDrawState;
+
+
 }
+
   
 
 //     if (line == "END") {
@@ -85,7 +114,8 @@ void loop() {
 
 
 void displayMenu() {
-  Serial.println("DEBUG: Drawing menu on display");  // DEBUG
+ // Serial.println("DEBUG: Drawing menu on display");  // DEBUG
+  u8g2.setFont(u8g2_font_5x8_tf);
   u8g2.firstPage();
   do {
     if (currentError.length() > 0) {
@@ -97,12 +127,13 @@ void displayMenu() {
         u8g2.drawStr(0, y, menuLines[i].c_str());
       }
 
-      char buf[20];
-      snprintf(buf, sizeof(buf), "Throttle: %.2f", currentThrottle);
-      u8g2.drawStr(0, 64, buf);  // bottom line
+      // char buf[20];
+      // snprintf(buf, sizeof(buf), "Throttle: %.2f", currentThrottle);
+      // u8g2.drawStr(0, 64, buf);  // bottom line
     }
   } while (u8g2.nextPage());
 }
+
 
 void showReadyMessage() {
   u8g2.firstPage();
@@ -113,11 +144,12 @@ void showReadyMessage() {
 
 void drawThrottle(int pos_x,int pos_y,String message)
 {
-  Serial.print("DEBUG: Drawing throttle: ");  // DEBUG
-  Serial.println(message);
+ // Serial.print("DEBUG: Drawing throttle: ");  // DEBUG
+ // Serial.println(message);
   u8g2.firstPage();
   do {
     u8g2.setFont(u8g2_font_helvB24_tr);
     u8g2.drawStr(pos_x, pos_y, message.c_str());
   } while (u8g2.nextPage());
+  delay(100);
 }

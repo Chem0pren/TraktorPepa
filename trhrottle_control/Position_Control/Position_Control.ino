@@ -34,7 +34,7 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SD
 A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
 
 unsigned long lastDisplayUpdate = 0;
-const unsigned long displayInterval = 500; // ms
+const unsigned long displayInterval = 50; // ms
 
 //current jostick value
 int yVal = 0;
@@ -165,14 +165,14 @@ void loop() {
 
   //drawThrottle(40,40,String(smoothedPedalValue));
 
- 
-  if (millis() - lastDisplayUpdate > displayInterval) {
-    lastDisplayUpdate = millis();
-    if (CurrentDisplay == 0) {
-      SendValues();
+  if(CurrentDisplay==0){
+    if (millis() - lastDisplayUpdate > displayInterval) {
+      lastDisplayUpdate = millis();
+      if (CurrentDisplay == 0) {
+        SendValues();
+      }
     }
   }
-
   if(CurrentDisplay==1)
   {
     InteractiveMenu();
@@ -235,7 +235,7 @@ void InteractiveMenu()
       selectedItem++;
       if (selectedItem >= menuLength) selectedItem = 0;
       lastMoveTime = millis();
-      sendMenu();   
+      //sendMenu();   
       
     }
 
@@ -243,27 +243,26 @@ void InteractiveMenu()
     if (xVal < 400) {
       adjustValue(-1);
       lastMoveTime = millis();
-      sendMenu();   
+      //sendMenu();   
       
     } else if (xVal > 600) {
       adjustValue(1);
       lastMoveTime = millis();
-      sendMenu();  
+      //sendMenu();  
     }
   
-  //sendMenu();   
-  delay(200);
+  sendMenu();   
 }
 
 
 void SendValues()
 {
-    Serial.print("DISPLAY:");
-    Serial.println(CurrentDisplay);
+    Serial.println("DISPLAY:");
+    //Serial.println(CurrentDisplay);
     Serial.print("THROTTLE:");
     Serial.println(smoothedPedalValue);
     Serial.print("END\n");
-    delay(100);
+    delay(200);
 }
 
 
@@ -273,11 +272,11 @@ void sendMenu() {
     Serial.println(error);
     return; // Skip showing menu if error screen active
   }
-    Serial.println("DISPLAY:");
-    Serial.print(CurrentDisplay);
+    Serial.println("MENU:");
+  //  Serial.print(CurrentDisplay);
 
   //if (CurrentDisplay = 1){
-    Serial.println("Menu:");
+   // Serial.println("Menu:");
     for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
       if (i == selectedItem) {
         Serial.print("> ");   // add cursor mark before selected item
@@ -292,13 +291,9 @@ void sendMenu() {
       //Serial.print(menu[i].step, 4);
       Serial.print("\n");
     }
-  //}
-  //if (CurrentDisplay = 0){
-    Serial.print("Throttle: ");
-    Serial.println(smoothedPedalValue, 2);
-  //}
+ 
     Serial.print("END\n");
-    delay(10);
+    delay(200);
 }
 
 
