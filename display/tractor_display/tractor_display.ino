@@ -22,7 +22,7 @@ void setup() {
 
   Serial.println("Setup");  // DEBUG
   Serial.println("DEBUG: Display start");  // DEBUG
-  //showReadyMessage();
+  showReadyMessage();
 }
 
 void loop() {
@@ -76,41 +76,6 @@ void loop() {
 
 
 }
-
-  
-
-//     if (line == "END") {
-//       hasReceivedData = true;
-//       Serial.println("DEBUG: End of data received, displaying menu");
-//       displayMenu();
-//       lineCount = 0;
-//     } 
-//     else if (line.startsWith("THROTTLE:")) {
-//       currentThrottle = line.substring(9).toFloat();
-//       Serial.print("DEBUG: Throttle updated to ");
-//       Serial.println(currentThrottle);
-//     } 
-//     else if (line.startsWith("ERROR:")) {
-//       currentError = line.substring(6);
-//       Serial.print("DEBUG: Error message set to: ");
-//       Serial.println(currentError);
-//     } 
-//     else if (line.startsWith("DISPLAY:")) {
-//       Serial.println("DEBUG: DISPLAY=0 received, drawing throttle only");
-//       drawThrottle(40, 40, String(currentThrottle));
-//     }
-//     else {
-//       if (lineCount < maxLines) {
-//         menuLines[lineCount++] = line;
-//         Serial.print("DEBUG: Menu line stored: ");
-//         Serial.println(line);
-//       } else {
-//         Serial.println("DEBUG: Menu line count exceeded maxLines");
-//       }
-//     }
-//   }
-//   delay(1000);
-// }
 
 
 void displayMenu() {

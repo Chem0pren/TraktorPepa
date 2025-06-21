@@ -176,12 +176,11 @@ void loop() {
   if(CurrentDisplay==1)
   {
     InteractiveMenu();
-    //drawInfo();
   }
 
   if(CurrentDisplay==2)
   {
-    // print error
+    sendError();
   }
  
 
@@ -267,62 +266,33 @@ void SendValues()
 
 
 void sendMenu() {
-  if (error) {
-    Serial.print("ERROR: ");
-    Serial.println(error);
-    return; // Skip showing menu if error screen active
-  }
-    Serial.println("MENU:");
-  //  Serial.print(CurrentDisplay);
 
-  //if (CurrentDisplay = 1){
-   // Serial.println("Menu:");
+    Serial.println("MENU:");
     for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
       if (i == selectedItem) {
         Serial.print("> ");   // add cursor mark before selected item
       } else {
         Serial.print("  ");   // indent others for alignment
       }
-
       Serial.print(menu[i].name);
       Serial.print(":");
       Serial.print(*menu[i].value, 4);
       Serial.print(":");
-      //Serial.print(menu[i].step, 4);
       Serial.print("\n");
     }
- 
     Serial.print("END\n");
     delay(200);
 }
 
+void sendError() {
 
-// void drawMenu() {
+    Serial.println("MENU:");
+    Serial.println("ERROR MESSAGE:");
+    
+    Serial.print("END\n");
+    delay(200);
+}
 
-//   u8g2.setFont(u8g_font_04b_03br);
- 
-
-//     for (int i = 0; i < menuLength; i++) {
-//       int y = 7 + i * 7;
-//       if (i == selectedItem) {
-//         //u8g.drawFrame(0, y - 10, 100, 10);
-        
-//         //u8g.setColorIndex(0); // text in black
-//         u8g2.setPrintPos(2, y);
-//         u8g2.print(">");
-//         u8g2.print(menu[i].name);
-//         u8g2.print(": ");
-//         u8g2.print(*menu[i].value, 2);
-//         //u8g.setColorIndex(1); // reset to white
-//       } else {
-//         u8g2.setPrintPos(2, y);
-//         u8g2.print(menu[i].name);
-//         u8g2.print(": ");
-//         u8g2.print(*menu[i].value, 2);
-//       }
-//     }
-
-// }
 
 // === Adjust Current Value ===
 void adjustValue(int direction) {
@@ -355,43 +325,6 @@ float readFloatFromEEPROM(int address) {
   return data.f;
 }
 
-//DISPLAY
-// void drawServoInfo(int pos_x,int pos_y,String message)
-// {
-// u8g2.setFont(u8g_font_04b_03b);
-// u8g2.setPrintPos(pos_x, pos_y);
-// u8g2.print(message);
-// }
-
-
-
-// void drawInfo()
-// {
-// u8g2.setFont(u8g_font_04b_03br);
-
-//    u8g2.setPrintPos(2, 50);
-//     u8g2.print("pedal vstup: ");
-//     u8g2.print(String(smoothedPedalValue));
-
-//    // u8g.setPrintPos(2, 57);
-//    // u8g.print("uhel encoder: ");
-//    // u8g.print(String(getEncoderAngle()));
- 
-// }
-
-
-// void drawThrottle(int pos_x,int pos_y,String message)
-// {
-//   u8g2.firstPage();
-//   do {
-   
-//     u8g2.setFont(u8g2_font_helvB24_tr);
-//     //u8g2.drawStr(0,20,message.c_str());
-//     u8g2.drawStr(pos_x, pos_y, message.c_str());
-//   } while ( u8g2.nextPage() );
-//   //delay(1000);
-//                      //    Transfer internal memory to the display
-// }/
 
 void turnToAngle(int angle_to_move)
 {
