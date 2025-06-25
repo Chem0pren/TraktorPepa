@@ -17,24 +17,26 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SD
 #define pinY A2
 #define pinX A3
 #define MOTOR_STEPS 200
-#define DIR 3
-#define STEP 4
-#define ENBL 8
+#define DIR 4
+#define STEP 3
+#define ENBL 5
+/*
 #define MS1 7
 #define MS2 6
 #define MS3 5
+*/
 #define GEAR_RATIO 3.0
-#define MICROSTEPS 4
+#define MICROSTEPS 1
 #define STEPPPER_ON 10
 #define INPUTPEDALPIN A0 
 #define ENCODERPIN A6
 #define BUTTONPIN 2
 
 
-A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
+A4988 stepper(MOTOR_STEPS, DIR, STEP);
 
 unsigned long lastDisplayUpdate = 0;
-const unsigned long displayInterval = 50; // ms
+const unsigned long displayInterval = 100; // ms
 
 //current jostick value
 int yVal = 0;
@@ -131,16 +133,19 @@ void loop() {
   yVal = analogRead(pinY);
   xVal = analogRead(pinX);
 
-  // if(!init_done){
-  //   if(seekHome()){
-  //     init_done = true;
-  //   }
-  // }
+  if(!init_done){
+    if(seekHome()){
+      init_done = true;
+    }
+  }
 
   smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
 
+
+
+
   if(!error){
-   // turnToAngle(smoothedPedalValue);
+    turnToAngle(smoothedPedalValue);
   }
 
   //ensure always zero when idle
@@ -148,7 +153,7 @@ void loop() {
   {
     //Serial.println(getEncoderAngle());
     if(getEncoderAngle() > 1){
-     // seekHome();
+      seekHome();
     }
   }
 
@@ -168,10 +173,14 @@ void loop() {
   if(CurrentDisplay==0){
     if (millis() - lastDisplayUpdate > displayInterval) {
       lastDisplayUpdate = millis();
-      if (CurrentDisplay == 0) {
-        SendValues();
-      }
+      
+       // SendValues();
+      
     }
+  }
+  if(CurrentDisplay==0)
+  {
+    //SendValues();
   }
   if(CurrentDisplay==1)
   {
@@ -257,11 +266,10 @@ void InteractiveMenu()
 void SendValues()
 {
     Serial.println("DISPLAY:");
-    //Serial.println(CurrentDisplay);
     Serial.print("THROTTLE:");
     Serial.println(smoothedPedalValue);
     Serial.print("END\n");
-    delay(200);
+    
 }
 
 
@@ -344,8 +352,8 @@ void turnToAngle(int angle_to_move)
 
     float finalAngle = getEncoderAngle();
 
-    Serial.print("Target: "); Serial.print(angle_to_move);
-    Serial.print(" | Reached: "); Serial.println(finalAngle);
+   // Serial.print("Target: "); Serial.print(angle_to_move);
+    //Serial.print(" | Reached: "); Serial.println(finalAngle);
 
 }
 
