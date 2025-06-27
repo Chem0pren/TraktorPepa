@@ -26,7 +26,7 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SD
 #define MS3 5
 */
 #define GEAR_RATIO 3.0
-#define MICROSTEPS 1
+#define MICROSTEPS 4
 #define STEPPPER_ON 10
 #define INPUTPEDALPIN A0 
 #define ENCODERPIN A6
@@ -107,7 +107,7 @@ void setup() {
   u8g2.begin();
 
   stepper.setRPM(200);
-  stepper.setMicrostep(MICROSTEPS);
+  //stepper.setMicrostep(MICROSTEPS);
   pinMode(BUTTONPIN, INPUT_PULLUP);
   Serial.begin(9600);
   //u8g.setColorIndex(1); // display draws with pixel on
@@ -122,6 +122,7 @@ void setup() {
     nullptr   // errorMessage (null = no error)
   };
 
+ // stepper.move(400*3);
 }
 
 void loop() {
@@ -141,7 +142,7 @@ void loop() {
 
   smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
 
-
+  //Serial.println(smoothedPedalValue);
 
 
   if(!error){
@@ -153,7 +154,7 @@ void loop() {
   {
     //Serial.println(getEncoderAngle());
     if(getEncoderAngle() > 1){
-      seekHome();
+     // seekHome();
     }
   }
 
@@ -174,13 +175,13 @@ void loop() {
     if (millis() - lastDisplayUpdate > displayInterval) {
       lastDisplayUpdate = millis();
       
-       // SendValues();
+        //SendValues();
       
     }
   }
   if(CurrentDisplay==0)
   {
-    //SendValues();
+   // SendValues();
   }
   if(CurrentDisplay==1)
   {
@@ -265,10 +266,10 @@ void InteractiveMenu()
 
 void SendValues()
 {
-    Serial.println("DISPLAY:");
+    //Serial.println("DISPLAY:");
     Serial.print("THROTTLE:");
     Serial.println(smoothedPedalValue);
-    Serial.print("END\n");
+   // Serial.print("END\n");
     
 }
 
@@ -341,8 +342,11 @@ void turnToAngle(int angle_to_move)
     }
 
     float currentAngle = getEncoderAngle();
-    v = map(abs(angle_to_move), 0, 360, 0, 600);
-    int stepsToMove = (v - previous) * MICROSTEPS;
+
+    
+
+    float v = map(angle_to_move, 0.0, 360.0, 0.0, 1200);  // use floating point map
+    int stepsToMove = (v - previous);
        
     stepper.move(stepsToMove);
     currentPosition += stepsToMove;
@@ -351,11 +355,13 @@ void turnToAngle(int angle_to_move)
     previous = v;
 
     float finalAngle = getEncoderAngle();
+    delay(10); //need to be there for stability
 
-   // Serial.print("Target: "); Serial.print(angle_to_move);
-    //Serial.print(" | Reached: "); Serial.println(finalAngle);
+    Serial.print("Target: "); Serial.print(angle_to_move);
+    Serial.print(" | Reached: "); Serial.println(finalAngle);
 
 }
+
 
 bool EncoderResponseCheck(int targetAngle, float currentAngle)
 {
