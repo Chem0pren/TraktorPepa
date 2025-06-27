@@ -54,7 +54,7 @@ long currentPosition = 0;  // Manual step tracking
 
 const int POT_ZERO_THRESHOLD = 10;    // Treat potentiometer as "zero" below this value
 float smoothedValue = 0;
-
+float smoothedServoValue = 0;
 bool error = false;                 // Global or static error flag
 unsigned long movementStartTime = 0;
 bool movementInProgress = false;
@@ -351,26 +351,30 @@ float readFloatFromEEPROM(int address) {
 
 void turnToAngle(float angle_to_move)
 {   
-    /*
-    angle_to_move = constrain(angle_to_move, 0.0, 360.0);  // clamp input
+    
+    //angle_to_move = constrain(angle_to_move, 0.0, 360.0);  // clamp input
+
+    stepper.setSpeed(1000);
+
 
     // Map angle to stepper position: 0°–360° → 0–1200 steps
     float v = (angle_to_move / 360.0) * 1200.0;
     int targetSteps = round(v);  // absolute position
-
+    
+    float smoothedValue = GetServoSmoothInput(targetSteps,1,0.01);
     // Only update if position changes
-    if (stepper.targetPosition() != targetSteps) {
-        stepper.moveTo(targetSteps);
+    if (stepper.targetPosition() != smoothedValue) {
+        stepper.moveTo(smoothedValue);
     }
 
     lastInputAngle = angle_to_move;
     previous = v;
-    */
-
-    float v = (angle_to_move / 360.0) * 1200.0;
     
-    stepper.moveTo(v);
-    stepper.setSpeed(1000);
+
+    //float v = (angle_to_move / 1024.0) * 1200.0;
+    
+    //stepper.moveTo(v);
+   // stepper.setSpeed(1000);
     stepper.runSpeedToPosition();
     //delay(100);
     // Print debug
@@ -415,6 +419,8 @@ bool EncoderResponseCheck(int targetAngle, float currentAngle)
 
 int GetPedalSmoothInput(float minAlpha,float maxAlpha)
 {
+ // max_angle = 1024/4;
+
   int currentReading = analogRead(INPUTPEDALPIN);
   int input_angle = map(currentReading, 75, 472, 0, max_angle);
   int rawValue = input_angle;
@@ -428,8 +434,27 @@ int GetPedalSmoothInput(float minAlpha,float maxAlpha)
   return round(smoothedValue);
 }
 
+int GetServoSmoothInput(float input,float minAlpha,float maxAlpha)
+{
+ // max_angle = 1024/4;
+
+  //int currentReading = analogRead(INPUTPEDALPIN);
+  //int input_angle = map(currentReading, 75, 472, 0, max_angle);
+  int rawValue = input;
+  float difference = abs(input - smoothedServoValue);
+  // Normalize difference (0–1023) to a 0–1 scale
+  float normDiff = constrain(difference / max_angle, 0, 1);
+  // Interpolate alpha between min and max based on difference
+  float alpha = minAlpha + (maxAlpha - minAlpha) * normDiff;
+  // Apply smoothing
+  smoothedServoValue = alpha * rawValue + (1 - alpha) * smoothedServoValue;
+  return round(smoothedServoValue);
+}
+
+
 float getEncoderAngle() {
   int raw = analogRead(ENCODERPIN);
+  //return raw;
   return map(raw, 0, 1023, 0, 360);
 }
 
