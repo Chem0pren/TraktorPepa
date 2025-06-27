@@ -4,6 +4,8 @@
 #include "A4988.h"
 #include <U8g2lib.h>
 
+#include <AccelStepper.h>
+
 #ifdef U8X8_HAVE_HW_I2C
 #include <Wire.h>
 #endif
@@ -33,7 +35,8 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SD
 #define BUTTONPIN 2
 
 
-A4988 stepper(MOTOR_STEPS, DIR, STEP);
+// Create stepper instance with DRIVER mode and custom pins
+AccelStepper stepper(AccelStepper::DRIVER, STEP, DIR);
 
 unsigned long lastDisplayUpdate = 0;
 const unsigned long displayInterval = 100; // ms
@@ -75,6 +78,7 @@ int CurrentDisplay = 0;
 
 unsigned long lastMoveTime = 0;
 const int debounceDelay = 500;
+unsigned long lastPrintTime = 0;
 
 //menu item
 struct MenuItem {
@@ -106,7 +110,9 @@ int smoothedPedalValue = 0;
 void setup() {
   u8g2.begin();
 
-  stepper.setRPM(200);
+  //stepper.setRPM(200);
+  stepper.setMaxSpeed(3000);       // Try something between 1000–3000
+  stepper.setAcceleration(1000);
   //stepper.setMicrostep(MICROSTEPS);
   pinMode(BUTTONPIN, INPUT_PULLUP);
   Serial.begin(9600);
@@ -147,16 +153,24 @@ void loop() {
 
   if(!error){
     turnToAngle(smoothedPedalValue);
+    if (millis() - lastPrintTime > 200) {  // print every 200ms
+        Serial.print("smoothedPedalValue: ");
+        Serial.println(smoothedPedalValue);
+        Serial.print("currentAngle: ");
+        Serial.println(getEncoderAngle());
+        lastPrintTime = millis();
+    }
+  //  stepper.runSpeedToPosition();  // VERY important for smooth motion
   }
 
   //ensure always zero when idle
-  if(smoothedPedalValue == 0 &&  stepper.getStepsCompleted() == 0)
-  {
-    //Serial.println(getEncoderAngle());
-    if(getEncoderAngle() > 1){
-     // seekHome();
-    }
-  }
+  // if(smoothedPedalValue == 0 &&  stepper.getStepsCompleted() == 0)
+  // {
+  //   //Serial.println(getEncoderAngle());
+  //   if(getEncoderAngle() > 1){
+  //    // seekHome();
+  //   }
+  // }
 
   //EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
   //delay(10);
@@ -335,31 +349,33 @@ float readFloatFromEEPROM(int address) {
 }
 
 
-void turnToAngle(int angle_to_move)
-{
-    if(angle_to_move < 0){
-      angle_to_move = 0;
+void turnToAngle(float angle_to_move)
+{   
+    /*
+    angle_to_move = constrain(angle_to_move, 0.0, 360.0);  // clamp input
+
+    // Map angle to stepper position: 0°–360° → 0–1200 steps
+    float v = (angle_to_move / 360.0) * 1200.0;
+    int targetSteps = round(v);  // absolute position
+
+    // Only update if position changes
+    if (stepper.targetPosition() != targetSteps) {
+        stepper.moveTo(targetSteps);
     }
-
-    float currentAngle = getEncoderAngle();
-
-    
-
-    float v = map(angle_to_move, 0.0, 360.0, 0.0, 1200);  // use floating point map
-    int stepsToMove = (v - previous);
-       
-    stepper.move(stepsToMove);
-    currentPosition += stepsToMove;
 
     lastInputAngle = angle_to_move;
     previous = v;
+    */
 
-    float finalAngle = getEncoderAngle();
-    delay(10); //need to be there for stability
-
-    Serial.print("Target: "); Serial.print(angle_to_move);
-    Serial.print(" | Reached: "); Serial.println(finalAngle);
-
+    float v = (angle_to_move / 360.0) * 1200.0;
+    
+    stepper.moveTo(v);
+    stepper.setSpeed(1000);
+    stepper.runSpeedToPosition();
+    //delay(100);
+    // Print debug
+    //Serial.print("Target: "); Serial.println(angle_to_move);
+   // Serial.print(" | Step Target: "); Serial.println(targetSteps);
 }
 
 
@@ -419,27 +435,34 @@ float getEncoderAngle() {
 
 bool seekHome() {
   Serial.println("Seeking home position...");
-  float angle = getEncoderAngle();
 
-  while (!(angle < HOME_TOLERANCE_DEG || angle > (360 - HOME_TOLERANCE_DEG))) {
+  //stepper.setSpeed(-200);  // Negative = backward direction
+
+  while (true) {
+    float angle = getEncoderAngle();
+
+    // Check if within tolerance of 0 degrees
+    if (angle < HOME_TOLERANCE_DEG || angle > (360.0 - HOME_TOLERANCE_DEG)) {
+      break;
+    }
+
     if(angle > 0 && angle < 180){
-      stepper.move(-1);  // Move slowly backward
+      stepper.setSpeed(-200);  // Move slowly backward
     }
     else{
-      stepper.move(1);  // Move slowly backward
-
+      stepper.setSpeed(200);   // Move slowly backward
     }
-    currentPosition--;
-    delay(5);
-    angle = getEncoderAngle();
+
+    stepper.runSpeed();  // Keeps moving at set speed
+    delay(5);            // Optional slow down
     Serial.print("Current Angle: ");
     Serial.println(angle);
   }
 
+  stepper.stop();  // Stop stepper
   Serial.println("Home position reached.");
-  currentPosition = 0;
+  stepper.setCurrentPosition(0);  // Reset stepper internal position to 0
   return true;
-  
 }
 
 
