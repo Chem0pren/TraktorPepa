@@ -140,39 +140,50 @@ void loop() {
   yVal = analogRead(pinY);
   xVal = analogRead(pinX);
 
-  if(!init_done){
+  if(!init_done && CurrentDisplay == 0){
     if(seekHome()){
       init_done = true;
+      
     }
   }
 
-  smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
+  
 
   //Serial.println(smoothedPedalValue);
 
+  if(CurrentDisplay == 0){
+      smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
+      turnToAngle(smoothedPedalValue);
 
-  if(!error){
-    turnToAngle(smoothedPedalValue);
-    if (millis() - lastPrintTime > 200) {  // print every 200ms
-        Serial.print("smoothedPedalValue: ");
-        Serial.println(smoothedPedalValue);
-        Serial.print("currentAngle: ");
-        Serial.println(getEncoderAngle());
-        lastPrintTime = millis();
-    }
-  //  stepper.runSpeedToPosition();  // VERY important for smooth motion
+      EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
+    
+      if(error){
+          CurrentDisplay=2;
+      }
+    
+      // if (millis() - lastPrintTime > 200) {  // print every 200ms
+      //     Serial.print("smoothedPedalValue: ");
+      //     Serial.println(smoothedPedalValue);
+      //     Serial.print("currentAngle: ");
+      //     Serial.println(getEncoderAngle());
+      //     lastPrintTime = millis();
+      // }
+    //  tepper.runSpeedToPosition();  // VERY important for smooth motion
   }
+  
+
 
   //ensure always zero when idle
-  if(smoothedPedalValue == 0 &&  stepper.distanceToGo() == 0)
-  {
-    //Serial.println(getEncoderAngle());
-    if(getEncoderAngle() > 1){
-      seekHome();
+  if(!error){
+    if(smoothedPedalValue == 0 &&  stepper.distanceToGo() == 0)
+    {
+      //Serial.println(getEncoderAngle());
+      if(getEncoderAngle() > 1){
+        seekHome();
+      }
     }
   }
-
-  //EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
+ 
   //delay(10);
 
   // int lastSmoothedval;
@@ -189,7 +200,7 @@ void loop() {
     if (millis() - lastDisplayUpdate > displayInterval) {
       lastDisplayUpdate = millis();
       
-       // SendValues();
+       SendValues();
       
     }
   }
@@ -200,13 +211,21 @@ void loop() {
   if(CurrentDisplay==1)
   {
     InteractiveMenu();
+    stepper.stop();
   }
 
+  //encoder error
   if(CurrentDisplay==2)
   {
-    sendError();
+    sendError("Encoder a vstup maji jine hodnoty");
+    stepper.stop();
   }
  
+  if(CurrentDisplay==3)
+  {
+    sendError("chyba pri hledani pozice 0");
+    stepper.stop();
+  }
 
 
 }
@@ -307,11 +326,10 @@ void sendMenu() {
     delay(200);
 }
 
-void sendError() {
+void sendError(String Message) {
 
     Serial.println("MENU:");
-    Serial.println("ERROR MESSAGE:");
-    
+    Serial.println(Message);
     Serial.print("END\n");
     delay(200);
 }
@@ -354,8 +372,8 @@ void turnToAngle(float angle_to_move)
     
     //angle_to_move = constrain(angle_to_move, 0.0, 360.0);  // clamp input
 
-    stepper.setSpeed(1000);
-    
+    stepper.setSpeed(2000);
+
     // Map angle to stepper position: 0°–360° → 0–1200 steps
     float v = (angle_to_move / 360.0) * 1200.0;
     int targetSteps = round(v);  // absolute position
@@ -402,7 +420,7 @@ bool EncoderResponseCheck(int targetAngle, float currentAngle)
     if (millis() - movementStartTime > maxWaitTime) {
         movementInProgress = false;
         error = true;
-        Serial.println("ERROR: Encoder failed to reach target angle in time!");
+       // Serial.println("ERROR: Encoder failed to reach target angle in time!");
         return;
     }
 
@@ -473,6 +491,14 @@ bool seekHome() {
     delay(5);            // Optional slow down
     Serial.print("Current Angle: ");
     Serial.println(angle);
+    
+    EncoderResponseCheck(0,angle);
+    if(error){
+      CurrentDisplay = 3;
+      break;
+    }
+
+
   }
 
   stepper.stop();  // Stop stepper
