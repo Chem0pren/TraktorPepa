@@ -164,13 +164,13 @@ void loop() {
   }
 
   //ensure always zero when idle
-  // if(smoothedPedalValue == 0 &&  stepper.getStepsCompleted() == 0)
-  // {
-  //   //Serial.println(getEncoderAngle());
-  //   if(getEncoderAngle() > 1){
-  //    // seekHome();
-  //   }
-  // }
+  if(smoothedPedalValue == 0 &&  stepper.distanceToGo() == 0)
+  {
+    //Serial.println(getEncoderAngle());
+    if(getEncoderAngle() > 1){
+      seekHome();
+    }
+  }
 
   //EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
   //delay(10);
@@ -189,7 +189,7 @@ void loop() {
     if (millis() - lastDisplayUpdate > displayInterval) {
       lastDisplayUpdate = millis();
       
-        //SendValues();
+       // SendValues();
       
     }
   }
@@ -355,12 +355,11 @@ void turnToAngle(float angle_to_move)
     //angle_to_move = constrain(angle_to_move, 0.0, 360.0);  // clamp input
 
     stepper.setSpeed(1000);
-
-
+    
     // Map angle to stepper position: 0°–360° → 0–1200 steps
     float v = (angle_to_move / 360.0) * 1200.0;
     int targetSteps = round(v);  // absolute position
-    
+
     float smoothedValue = GetServoSmoothInput(targetSteps,1,0.01);
     // Only update if position changes
     if (stepper.targetPosition() != smoothedValue) {
@@ -370,16 +369,8 @@ void turnToAngle(float angle_to_move)
     lastInputAngle = angle_to_move;
     previous = v;
     
-
-    //float v = (angle_to_move / 1024.0) * 1200.0;
-    
-    //stepper.moveTo(v);
-   // stepper.setSpeed(1000);
     stepper.runSpeedToPosition();
-    //delay(100);
-    // Print debug
-    //Serial.print("Target: "); Serial.println(angle_to_move);
-   // Serial.print(" | Step Target: "); Serial.println(targetSteps);
+
 }
 
 
