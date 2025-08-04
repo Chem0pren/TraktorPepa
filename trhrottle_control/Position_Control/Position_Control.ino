@@ -1,20 +1,7 @@
 // this is final code
 
 #include <EEPROM.h>
-#include "A4988.h"
-#include <U8g2lib.h>
-
 #include <AccelStepper.h>
-
-#ifdef U8X8_HAVE_HW_I2C
-#include <Wire.h>
-#endif
-
-//U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0);
-U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);   // All Boards without Reset of the Display
-//U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0); /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);   // All Boards without Reset of the Display
-
-//U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0);
 
 #define pinY A2
 #define pinX A3
@@ -22,11 +9,6 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SD
 #define DIR 4
 #define STEP 3
 #define ENBL 5
-/*
-#define MS1 7
-#define MS2 6
-#define MS3 5
-*/
 #define GEAR_RATIO 3.0
 #define MICROSTEPS 4
 #define STEPPPER_ON 10
@@ -108,17 +90,14 @@ int selectedItem = 0;
 int smoothedPedalValue = 0;
 
 void setup() {
-  u8g2.begin();
 
-  //stepper.setRPM(200);
   stepper.setMaxSpeed(3000);       // Try something between 1000–3000
   stepper.setAcceleration(1000);
-  //stepper.setMicrostep(MICROSTEPS);
   pinMode(BUTTONPIN, INPUT_PULLUP);
   Serial.begin(9600);
-  //u8g.setColorIndex(1); // display draws with pixel on
   Serial.println("read from EEPROM.");
   delay(1000); // Short delay before reading
+  
   //load EEPROM data
   loadFromEEPROM();
 
@@ -155,7 +134,7 @@ void loop() {
       smoothedPedalValue = GetPedalSmoothInput(minAlpha,maxAlpha);
       turnToAngle(smoothedPedalValue);
 
-      EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
+      //EncoderResponseCheck(smoothedPedalValue,getEncoderAngle());
     
       if(error){
           CurrentDisplay=2;
@@ -184,23 +163,11 @@ void loop() {
     }
   }
  
-  //delay(10);
-
-  // int lastSmoothedval;
-  // static String lastMessage = String(smoothedPedalValue);
-  // String message;
-  // if (smoothedPedalValue != lastSmoothedval) {
-  //   drawThrottle(40, 40, String(smoothedPedalValue));
-  // smoothedPedalValue = lastSmoothedval;
-  // }
-
-  //drawThrottle(40,40,String(smoothedPedalValue));
-
   if(CurrentDisplay==0){
     if (millis() - lastDisplayUpdate > displayInterval) {
       lastDisplayUpdate = millis();
       
-       SendValues();
+      // SendValues();
       
     }
   }
@@ -308,7 +275,6 @@ void SendValues()
 
 
 void sendMenu() {
-
     Serial.println("MENU:");
     for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
       if (i == selectedItem) {
