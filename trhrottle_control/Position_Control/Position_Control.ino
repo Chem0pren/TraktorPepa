@@ -158,7 +158,7 @@ void loop() {
     {
       //Serial.println(getEncoderAngle());
       if(getEncoderAngle() > 1){
-        seekHome();
+        //seekHome();
       }
     }
   }
@@ -335,7 +335,8 @@ float readFloatFromEEPROM(int address) {
 
 void turnToAngle(float angle_to_move)
 {   
-    
+     float angle = getEncoderAngle();
+
     //angle_to_move = constrain(angle_to_move, 0.0, 360.0);  // clamp input
 
     stepper.setSpeed(2000);
@@ -353,7 +354,18 @@ void turnToAngle(float angle_to_move)
     lastInputAngle = angle_to_move;
     previous = v;
     
+
+
+
     stepper.runSpeedToPosition();
+  
+    long lastPrint;
+
+    if (millis() - lastPrint > 100) {
+      Serial.print("Current Angle: ");
+      Serial.println(angle);
+      lastPrint = millis();
+    }
 
 }
 
