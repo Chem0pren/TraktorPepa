@@ -34,7 +34,20 @@ void loop() {
       u8g2.clearDisplay();
       u8g2.clearBuffer();
     }
+     if (line.startsWith("THROTTLE:")){
+        currentThrottle = line.substring(16).toInt();
+        drawThrottle(40, 40, String(currentThrottle));
+        u8g2.clearBuffer();
+     }else if (line.startsWith("INFO:")){
+       // Serial.println("Show info");  // DEBUG
+        showMessage(line);
+     }else if (line.startsWith("ERROR:")){
+        //Serial.println("Show info");  // DEBUG
+        showMessage(line);
+     }
+    }
 
+    /*
     if (line == "END") {
         if(displayDrawState == 1)
         {
@@ -73,7 +86,7 @@ void loop() {
     }
   }
   previousDisplayDrawState = displayDrawState;
-
+*/
 
 }
 
@@ -101,9 +114,18 @@ void displayMenu() {
 
 
 void showReadyMessage() {
+  u8g2.setFont(u8g2_font_5x8_tf);
   u8g2.firstPage();
   do {
     u8g2.drawStr(10, 30, "Display Ready...");
+  } while (u8g2.nextPage());
+}
+
+void showMessage(String message) {
+  u8g2.setFont(u8g2_font_5x8_tf);
+  u8g2.firstPage();
+  do {
+    u8g2.drawStr(10, 30, message.c_str());
   } while (u8g2.nextPage());
 }
 
@@ -116,5 +138,5 @@ void drawThrottle(int pos_x,int pos_y,String message)
     u8g2.setFont(u8g2_font_helvB24_tr);
     u8g2.drawStr(pos_x, pos_y, message.c_str());
   } while (u8g2.nextPage());
-  delay(100);
+  delay(10);
 }

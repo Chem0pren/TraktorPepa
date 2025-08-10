@@ -1,4 +1,5 @@
 //this is final code v2
+#include <EEPROM.h>
 
 const int stepPin = 3;
 const int dirPin = 4;
@@ -8,6 +9,10 @@ const int pinY = A2;
 const int pinX = A3;
 const int BUTTONPIN  = 2;
 const int RELAYPIN = 12;
+
+
+
+
 
 //system display
 int currentDisplay = 0; //0 - large number, 1 - menu, 2 - error 
@@ -33,19 +38,51 @@ int currentTargetAngle = 0;
 float smoothedTargetAngle = 0.0;
 
 //to be eprom
-const int MAX_ANGLE = 90;
-const int ZERO_OFFSET = -20;
+const float MAX_ANGLE = 90;
+const float ZERO_OFFSET = -20;
 // Steps per full rotation of the motor
-const int MAX_STEPS = 1200;
+const float MAX_STEPS = 1200;
 const int joystickDeadzone = 30;  // Around center (512)
-const int throttleStep = 5;
+const float throttleStep = 5;
 const float smoothingFactor = 0.8; // Between 0.0 (slow) and 1.0 (instant)
+const float MAX_HOMING_STEPS = 300;
 
 //global properties
 float stepDifference = 0;
 
 // Store current motor step position
 int currentStepPos = 0;
+
+//menu item
+struct MenuItem {
+  const char* name;
+  float* value;
+  float step;
+};
+
+//menu list
+MenuItem menu[] = {
+  {"Maximalni uhel", &MAX_ANGLE, 1.0},
+  {"Offset Nula", &ZERO_OFFSET, 1.0},
+  {"Citlivost", &smoothingFactor, 0.1},
+  {"Citlivost Yoy osa Y", &throttleStep, 0.1},
+  {"Homing cas max", &MAX_HOMING_STEPS, 1.0}
+};
+
+const int menuLength = sizeof(menu) / sizeof(menu[0]);
+int selectedItem = 0;
+unsigned long lastMoveTime = 0;
+const int debounceDelay = 500;
+
+const int JOY_CENTER = 512;   // typical mid point (calibrate if needed)
+const int DEADZONE   = 60;    // +/- dead zone, tweak (40..100)
+const unsigned long MOVE_DELAY = 10; // ms between moves
+
+int8_t lastYDir = 0; // -1 up, 0 center, +1 down
+int8_t lastXDir = 0; // -1 left, 0 center, +1 right
+
+//nsigned long lastMoveTime = 0; // you already had this
+
 
 void setup() {
   pinMode(RELAYPIN, OUTPUT);
@@ -56,16 +93,24 @@ void setup() {
   pinMode(BUTTONPIN, INPUT_PULLUP);
   pinMode(pinY, INPUT);
   pinMode(pinX, INPUT);
-  digitalWrite(RELAYPIN, LOW);  // LOW = off, assuming active HIGH relay
+  digitalWrite(RELAYPIN, HIGH);  // LOW = off, assuming active HIGH relay
   Serial.begin(9600);
+  
+  //load eeprom data
+  loadFromEEPROM();
   seekHome();
+
 }
 
 void loop() {
 
   if(!error){  
     buttonStateHandle();
-    updateThrottleFromJoystick();
+
+    if(currentDisplay==0)
+      {
+      updateThrottleFromJoystick();
+      };
 
     int pedalAngle = analogRead(INPUTPEDALPIN);
 
@@ -92,15 +137,23 @@ void loop() {
     float encoderAngle = getEncoderAngle() - ZERO_OFFSET;
     EncoderResponseCheck(encoderAngle,smoothedTargetAngle);
   }else{
-    Serial.println("switch off system");
+   // Serial.println("switch off system");
     digitalWrite(RELAYPIN, LOW);  // Turn relay ON
+    currentDisplay = 2; //error
   }
 
+  if(currentDisplay==1)
+  {
+    InteractiveMenu();
+  }
+
+
+
 }
+
+
+
 //loop end
-
-
-
 
 
 void updateSmoothedAngle() {
@@ -117,16 +170,22 @@ void turnToAngle(float angle_to_move,int speed)
   // Print debug info
   float encoderAngle = getEncoderAngle() - ZERO_OFFSET;
 
-  Serial.print("Pedal: ");
-  Serial.print(angle_to_move);
-  Serial.print(" | Target: ");
-  Serial.print(targetStepPos);
-  Serial.print(" | Current: ");
-  Serial.print(currentStepPos);
-  Serial.print(" | Delta: ");
-  Serial.print(stepDifference);
-  Serial.print(" | Encoder: ");
-  Serial.println(encoderAngle);
+
+  if(currentDisplay == 0)
+    {
+    Serial.print("THROTTLE:");
+    Serial.print("Pedal: ");
+    Serial.print(angle_to_move);
+    Serial.print(" | Target: ");
+    Serial.print(targetStepPos);
+    Serial.print(" | Current: ");
+    Serial.print(currentStepPos);
+    Serial.print(" | Delta: ");
+    Serial.print(stepDifference);
+    Serial.print(" | Encoder: ");
+    Serial.println(encoderAngle);
+    //Serial.println("END");
+    };
   
   if (stepDifference != 0) {
     // Set direction based on sign of difference
@@ -160,7 +219,6 @@ void seekHome() {
   Serial.println("Seeking home with encoder...");
 
   const float HOME_ANGLE_THRESHOLD = 1.0; // Allow ±1° tolerance
-  const int MAX_HOMING_STEPS = 300;
   const int homingSpeed = 500;
 
   int stepsTaken = 0;
@@ -169,10 +227,12 @@ void seekHome() {
     float angle = getEncoderAngle() - ZERO_OFFSET;
     angle = fmod(angle + 360.0, 360.0); // Normalize
 
-    Serial.print("Encoder angle: ");
-    Serial.print(angle);
-    Serial.print(" | Zero offset: ");
-    Serial.println(ZERO_OFFSET);
+
+    Serial.print("INFO:");
+    Serial.print("Hledam pozici 0: ");
+    Serial.println(angle);
+    //Serial.print(" | Zero offset: ");
+    //Serial.println(ZERO_OFFSET);
 
     float distanceToZero = min(angle, 360.0 - angle);
     if (distanceToZero <= HOME_ANGLE_THRESHOLD) {
@@ -184,10 +244,10 @@ void seekHome() {
     bool goClockwise = angle > 180.0;
     digitalWrite(dirPin, goClockwise ? HIGH : LOW);
 
-    Serial.print("Step ");
-    Serial.print(stepsTaken);
-    Serial.print(" | Direction: ");
-    Serial.println(goClockwise ? "CW" : "CCW");
+   // Serial.print("Step ");
+   // Serial.print(stepsTaken);
+   // Serial.print(" | Direction: ");
+   // Serial.println(goClockwise ? "CW" : "CCW");
 
     // Step
     digitalWrite(stepPin, HIGH);
@@ -198,7 +258,8 @@ void seekHome() {
     stepsTaken++;
     if (stepsTaken >= MAX_HOMING_STEPS) {
       error = true;
-      Serial.println("Homing failed: step limit reached.");
+      Serial.print("ERROR:");
+      Serial.println("vychozi pozice nanalezena");
       break;
     }
   }
@@ -213,7 +274,7 @@ void buttonStateHandle()
   //hold button check
   if (digitalRead(BUTTONPIN) == LOW) 
   {
-    Serial.println("button on");
+   // Serial.println("button on");
     if (!buttonHeld) {
       buttonHeld = true;
       buttonHoldStart = millis();
@@ -226,8 +287,10 @@ void buttonStateHandle()
       {
         currentDisplay = 3;
         Serial.println("save data");
-        //saveToEEPROM();
-        //drawInfo(40,40,"Data");
+        //save data to eeprom
+        saveToEEPROM();
+        //saving message
+
         delay(500);
         currentDisplay = 0;
       }
@@ -289,9 +352,108 @@ void EncoderResponseCheck(int targetAngle, float currentAngle)
     if (millis() - movementStartTime > maxWaitTime) {
         movementInProgress = false;
         error = true;
-        Serial.println("ERROR: Encoder failed to reach target angle in time!");
+        Serial.print("ERROR:");
+        Serial.println("Rozdil mezi hodnotou plynu a encoderu");
+       // Serial.println("ERROR: Encoder failed to reach target angle in time!");
        // return;
     }
 
+}
+
+// === Adjust Current Value ===
+void adjustValue(int direction) {
+  *menu[selectedItem].value += menu[selectedItem].step * direction;
+}
+
+
+void saveToEEPROM() {
+  for (int i = 0; i < menuLength; i++) {
+    EEPROM.put(i * sizeof(float), *menu[i].value);
+  }
+}
+
+void loadFromEEPROM() {
+  for (int i = 0; i < menuLength; i++) {
+    EEPROM.get(i * sizeof(float), *menu[i].value);
+  }
+}
+
+float readFloatFromEEPROM(int address) {
+  union {
+    byte b[4];
+    float f;
+  } data;
+
+  for (int i = 0; i < 4; i++) {
+    data.b[i] = EEPROM.read(address + i);
+  }
+
+  return data.f;
+}
+
+void InteractiveMenu()
+{
+  // Read joystick (optionally average several samples if noisy)
+  int yVal = analogRead(pinY);
+  int xVal = analogRead(pinX);
+
+  // Determine direction with dead zone
+  int8_t yDir = 0;
+  if (yVal < JOY_CENTER - DEADZONE) yDir = -1;       // up
+  else if (yVal > JOY_CENTER + DEADZONE) yDir = +1;  // down
+
+  int8_t xDir = 0;
+  if (xVal < JOY_CENTER - DEADZONE) xDir = -1;       // left
+  else if (xVal > JOY_CENTER + DEADZONE) xDir = +1;  // right
+
+  unsigned long now = millis();
+  bool changed = false;
+
+  // NAVIGATION (Y)
+  // Only act when we go from center (lastYDir == 0) -> moved (yDir != 0)
+  if (yDir != 0 && lastYDir == 0 && (now - lastMoveTime) > MOVE_DELAY) {
+    if (yDir == -1) {
+      selectedItem--;
+      if (selectedItem < 0) selectedItem = menuLength - 1;
+    } else {
+      selectedItem++;
+      if (selectedItem >= menuLength) selectedItem = 0;
+    }
+    lastMoveTime = now;
+    changed = true;
+  }
+  lastYDir = yDir;
+
+  // ADJUST VALUE (X)
+  // Same edge logic for left/right
+  if (xDir != 0 && lastXDir == 0 && (now - lastMoveTime) > MOVE_DELAY) {
+    adjustValue(xDir); // passes -1 or +1; adjustValue should accept this
+    lastMoveTime = now;
+    changed = true;
+  }
+  lastXDir = xDir;
+
+  // Only send menu when something actually changed
+  if (changed) {
+    sendMenu();
+  }
+}
+
+void sendMenu() {
+    Serial.println("MENU:");
+    for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
+      if (i == selectedItem) {
+        Serial.print("> ");   // add cursor mark before selected item
+      } else {
+        Serial.print("  ");   // indent others for alignment
+      }
+      Serial.print(menu[i].name);
+      Serial.print(":");
+      Serial.print(*menu[i].value, 4);
+      Serial.print(":");
+      Serial.print("\n");
+    }
+    Serial.print("END\n");
+    delay(200);
 }
 

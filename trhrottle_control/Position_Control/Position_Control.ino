@@ -17,6 +17,7 @@
 #define BUTTONPIN 2
 
 
+
 // Create stepper instance with DRIVER mode and custom pins
 AccelStepper stepper(AccelStepper::DRIVER, STEP, DIR);
 
@@ -88,6 +89,7 @@ const int menuLength = sizeof(menu) / sizeof(menu[0]);
 int selectedItem = 0;
 
 int smoothedPedalValue = 0;
+
 
 void setup() {
 
