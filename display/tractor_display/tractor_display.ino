@@ -44,7 +44,11 @@ void loop() {
      }else if (line.startsWith("ERROR:")){
         //Serial.println("Show info");  // DEBUG
         showMessage(line);
+     }else if (line.startsWith("MENU:")){
+        //Serial.println("Show info");  // DEBUG
+        showMenuFromString(line);
      }
+
     }
 
     /*
@@ -139,4 +143,38 @@ void drawThrottle(int pos_x,int pos_y,String message)
     u8g2.drawStr(pos_x, pos_y, message.c_str());
   } while (u8g2.nextPage());
   delay(10);
+}
+
+void showMenuFromString(String menuStr) {
+  u8g2.setFont(u8g2_font_5x8_tf);
+  const int lineHeight = u8g2.getMaxCharHeight();
+
+  // Remove "MENU:" at the start and "END" at the end if they exist
+  if (menuStr.startsWith("MENU:")) {
+    menuStr.remove(0, 5); // remove "MENU:"
+  }
+  int endIndex = menuStr.indexOf("END");
+  if (endIndex != -1) {
+    menuStr.remove(endIndex);
+  }
+
+  u8g2.firstPage();
+  do {
+    int y = lineHeight;
+    int start = 0;
+    while (true) {
+      int sepIndex = menuStr.indexOf('|', start);
+      if (sepIndex == -1) break; // no more separators
+
+      String line = menuStr.substring(start, sepIndex);
+      line.trim(); // remove extra spaces
+
+      if (line.length() > 0) {
+        u8g2.drawStr(0, y, line.c_str());
+        y += lineHeight;
+      }
+
+      start = sepIndex + 1; // move past separator
+    }
+  } while (u8g2.nextPage());
 }

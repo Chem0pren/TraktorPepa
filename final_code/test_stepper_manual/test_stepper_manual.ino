@@ -10,10 +10,6 @@ const int pinX = A3;
 const int BUTTONPIN  = 2;
 const int RELAYPIN = 12;
 
-
-
-
-
 //system display
 int currentDisplay = 0; //0 - large number, 1 - menu, 2 - error 
 
@@ -440,7 +436,7 @@ void InteractiveMenu()
 }
 
 void sendMenu() {
-    Serial.println("MENU:");
+    Serial.print("MENU:");
     for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
       if (i == selectedItem) {
         Serial.print("> ");   // add cursor mark before selected item
@@ -451,9 +447,10 @@ void sendMenu() {
       Serial.print(":");
       Serial.print(*menu[i].value, 4);
       Serial.print(":");
-      Serial.print("\n");
+      //Serial.print("\n");
+      Serial.print("|");
     }
-    Serial.print("END\n");
+    Serial.println("END\n");
     delay(200);
 }
 
