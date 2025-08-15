@@ -12,6 +12,7 @@ const int RELAYPIN = 12;
 
 //system display
 int currentDisplay = 0; //0 - large number, 1 - menu, 2 - error 
+bool InitPhase = true;
 
 // error check
 bool error = false;                 // Global or static error flag
@@ -34,14 +35,14 @@ int currentTargetAngle = 0;
 float smoothedTargetAngle = 0.0;
 
 //to be eprom
-const float MAX_ANGLE = 90;
-const float ZERO_OFFSET = -20;
+float MAX_ANGLE = 90;
+float ZERO_OFFSET = -20;
 // Steps per full rotation of the motor
-const float MAX_STEPS = 1200;
-const int joystickDeadzone = 30;  // Around center (512)
-const float throttleStep = 5;
-const float smoothingFactor = 0.8; // Between 0.0 (slow) and 1.0 (instant)
-const float MAX_HOMING_STEPS = 300;
+float MAX_STEPS = 1200;
+int joystickDeadzone = 30;  // Around center (512)
+float throttleStep = 5;
+float smoothingFactor = 0.8; // Between 0.0 (slow) and 1.0 (instant)
+float MAX_HOMING_STEPS = 300;
 
 //global properties
 float stepDifference = 0;
@@ -77,6 +78,7 @@ const unsigned long MOVE_DELAY = 10; // ms between moves
 int8_t lastYDir = 0; // -1 up, 0 center, +1 down
 int8_t lastXDir = 0; // -1 left, 0 center, +1 right
 
+bool isMenuInit = false; 
 //nsigned long lastMoveTime = 0; // you already had this
 
 
@@ -90,31 +92,37 @@ void setup() {
   pinMode(pinY, INPUT);
   pinMode(pinX, INPUT);
   digitalWrite(RELAYPIN, HIGH);  // LOW = off, assuming active HIGH relay
-  Serial.begin(9600);
+  Serial.begin(19200);
   
   //load eeprom data
   loadFromEEPROM();
-  seekHome();
+ // seekHome();
 
 }
 
 void loop() {
 
-  if(!error){  
-    buttonStateHandle();
+  if(InitPhase){
+    seekHome();
+  }
 
-    if(currentDisplay==0)
-      {
-      updateThrottleFromJoystick();
-      };
+  buttonStateHandle();
+gi
+  if(!error){  
+    
+    if(currentDisplay==0) //if is menu or error, swich input off
+    {
+    updateThrottleFromJoystick();
+    };
 
     int pedalAngle = analogRead(INPUTPEDALPIN);
-
     int targetAngleJoystick = map(throttleJoystick, 0, 100, 0, MAX_ANGLE);
     int targetAnglePedal = map(pedalAngle, 75, 472, 0, MAX_ANGLE);
+    
+    //smoothing
     updateSmoothedAngle();
 
-
+    //pedal switch
     if(targetAnglePedal > AngleSwitchTreshold){
       currentTargetAngle = targetAnglePedal;
       throttleJoystick = 0;
@@ -122,7 +130,8 @@ void loop() {
       currentTargetAngle = targetAngleJoystick;
     }
 
-    turnToAngle(smoothedTargetAngle,600);
+    //main move function
+    turnToAngle(smoothedTargetAngle,600,throttleJoystick);
 
     //zero correction
     if(smoothedTargetAngle <=1 && stepDifference < 0){
@@ -131,7 +140,8 @@ void loop() {
 
     //check for error
     float encoderAngle = getEncoderAngle() - ZERO_OFFSET;
-    EncoderResponseCheck(encoderAngle,smoothedTargetAngle);
+    EncoderResponseCheck(smoothedTargetAngle,encoderAngle);
+  
   }else{
    // Serial.println("switch off system");
     digitalWrite(RELAYPIN, LOW);  // Turn relay ON
@@ -142,8 +152,6 @@ void loop() {
   {
     InteractiveMenu();
   }
-
-
 
 }
 
@@ -156,7 +164,7 @@ void updateSmoothedAngle() {
   smoothedTargetAngle = smoothedTargetAngle * (1.0 - smoothingFactor) + currentTargetAngle * smoothingFactor;
 }
 
-void turnToAngle(float angle_to_move,int speed)
+void turnToAngle(float angle_to_move,int speed,float throttleJoystick)
 {  
 
   // Map analog value to motor steps
@@ -166,22 +174,31 @@ void turnToAngle(float angle_to_move,int speed)
   // Print debug info
   float encoderAngle = getEncoderAngle() - ZERO_OFFSET;
 
+  float pedalPercent =  map(angle_to_move, 0, MAX_ANGLE, 0, 100);
+
+  //encoderAngle = constrain(encoderAngle,0,MAX_ANGLE);
+
+  float EncoderPercent =  map(encoderAngle, 0 , MAX_ANGLE , 0, 100);
+
+  EncoderPercent = constrain(EncoderPercent,0,100);
+  pedalPercent = constrain(pedalPercent,0,100);
 
   if(currentDisplay == 0)
     {
     Serial.print("THROTTLE:");
-    Serial.print("Pedal: ");
-    Serial.print(angle_to_move);
-    Serial.print(" | Target: ");
-    Serial.print(targetStepPos);
-    Serial.print(" | Current: ");
-    Serial.print(currentStepPos);
-    Serial.print(" | Delta: ");
-    Serial.print(stepDifference);
-    Serial.print(" | Encoder: ");
-    Serial.println(encoderAngle);
-    //Serial.println("END");
-    };
+  //  Serial.print("PedalAngle: ");
+  //  Serial.print(angle_to_move);
+    Serial.print("PedalPercent:");
+    Serial.print(pedalPercent);
+    Serial.print("|EncoderPercent:");
+    Serial.print(EncoderPercent);
+    Serial.print("|ThrottleYostick:");
+    Serial.println(throttleJoystick);
+    }else{
+      //compensate delay for stability
+      delay(10);
+
+    }
   
   if (stepDifference != 0) {
     // Set direction based on sign of difference
@@ -212,10 +229,11 @@ float getEncoderAngle() {
 }
 
 void seekHome() {
-  Serial.println("Seeking home with encoder...");
+  //Serial.println("Seeking home with encoder...");
 
   const float HOME_ANGLE_THRESHOLD = 1.0; // Allow ±1° tolerance
-  const int homingSpeed = 500;
+  const int homingSpeed = 700;
+  bool showMessage = true;
 
   int stepsTaken = 0;
 
@@ -223,16 +241,24 @@ void seekHome() {
     float angle = getEncoderAngle() - ZERO_OFFSET;
     angle = fmod(angle + 360.0, 360.0); // Normalize
 
+    if(InitPhase==true)
+    {
+      if(showMessage == true)
+      {
+      Serial.print("INFO:");
+      Serial.print("Hledam pozici 0: ");
+      Serial.println(angle);
+      showMessage = false;
+      }
 
-    Serial.print("INFO:");
-    Serial.print("Hledam pozici 0: ");
-    Serial.println(angle);
-    //Serial.print(" | Zero offset: ");
-    //Serial.println(ZERO_OFFSET);
-
+    }
+   
     float distanceToZero = min(angle, 360.0 - angle);
     if (distanceToZero <= HOME_ANGLE_THRESHOLD) {
       Serial.println("Reached home angle.");
+      error = false;
+      currentDisplay=0;
+      InitPhase = false;
       break;
     }
 
@@ -240,22 +266,22 @@ void seekHome() {
     bool goClockwise = angle > 180.0;
     digitalWrite(dirPin, goClockwise ? HIGH : LOW);
 
-   // Serial.print("Step ");
-   // Serial.print(stepsTaken);
-   // Serial.print(" | Direction: ");
-   // Serial.println(goClockwise ? "CW" : "CCW");
-
     // Step
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(homingSpeed);
     digitalWrite(stepPin, LOW);
     delayMicroseconds(homingSpeed);
+    
+    delay(10);
 
     stepsTaken++;
     if (stepsTaken >= MAX_HOMING_STEPS) {
       error = true;
       Serial.print("ERROR:");
-      Serial.println("vychozi pozice nanalezena");
+      Serial.print("| vychozi pozice nanalezena");
+      Serial.print("| Vypinam zapalovani!");
+      Serial.println("| Podrz tlacitko | pro reset");
+      InitPhase = false;
       break;
     }
   }
@@ -277,18 +303,23 @@ void buttonStateHandle()
     } else if (millis() - buttonHoldStart >= holdTime) {
       if(currentDisplay == 0)
       {
-        Serial.println("entering menu");
+        //menu init
         currentDisplay = 1;
-      }else
+      }else if (currentDisplay == 2) //if error
       {
+        resetSystem();
+      }else{
         currentDisplay = 3;
-        Serial.println("save data");
+       // Serial.println("save data");
+        Serial.println("INFO:");
+        Serial.print("Nastaveni ulozeno");
         //save data to eeprom
         saveToEEPROM();
         //saving message
 
-        delay(500);
+        delay(2000);
         currentDisplay = 0;
+        isMenuInit = false;
       }
       buttonHeld = false;
     }
@@ -304,10 +335,10 @@ void updateThrottleFromJoystick() {
 
   if (centeredY > joystickDeadzone) {
     // Joystick forward
-    throttleJoystick += throttleStep;
+    throttleJoystick -= throttleStep;
   } else if (centeredY < -joystickDeadzone) {
     // Joystick backward
-    throttleJoystick -= throttleStep;
+    throttleJoystick += throttleStep;
   }
 
   // Clamp throttle
@@ -349,7 +380,15 @@ void EncoderResponseCheck(int targetAngle, float currentAngle)
         movementInProgress = false;
         error = true;
         Serial.print("ERROR:");
-        Serial.println("Rozdil mezi hodnotou plynu a encoderu");
+        Serial.print("Rozdil mezi hodnotou | plynu a encoderu");
+        Serial.print(" | Uhel encoderu: ");
+        Serial.print(currentAngle);
+        Serial.print(" | Nastaveny uhel: ");
+        Serial.print(targetAngle);
+        Serial.print(" | Vypinam zapalovani!");
+        Serial.println("| Podrz tlacitko | pro reset");
+        currentDisplay = 2;
+
        // Serial.println("ERROR: Encoder failed to reach target angle in time!");
        // return;
     }
@@ -389,6 +428,12 @@ float readFloatFromEEPROM(int address) {
 
 void InteractiveMenu()
 {
+  if(!isMenuInit)
+  {
+    sendMenu();
+    isMenuInit = true;
+  }
+
   // Read joystick (optionally average several samples if noisy)
   int yVal = analogRead(pinY);
   int xVal = analogRead(pinX);
@@ -432,10 +477,12 @@ void InteractiveMenu()
   // Only send menu when something actually changed
   if (changed) {
     sendMenu();
+    seekHome();
   }
 }
 
-void sendMenu() {
+void sendMenu() 
+{
     Serial.print("MENU:");
     for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
       if (i == selectedItem) {
@@ -451,6 +498,12 @@ void sendMenu() {
       Serial.print("|");
     }
     Serial.println("END\n");
-    delay(200);
 }
 
+void resetSystem()
+{
+    error = false;
+    InitPhase = true;
+    isMenuInit = false;
+    currentDisplay = 0;
+}

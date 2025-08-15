@@ -16,16 +16,21 @@ int displayDrawState = 0;
 int previousDisplayDrawState = 0;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(19200);
   u8g2.begin();
   u8g2.setFont(u8g2_font_5x8_tf);
 
   Serial.println("Setup");  // DEBUG
   Serial.println("DEBUG: Display start");  // DEBUG
+ // u8g2.clearDisplay();
+  //u8g2.initDisplay();
+  //u8g2.clearBuffer();
   showReadyMessage();
+  
 }
 
 void loop() {
+  
   if (Serial.available()) {
     String line = Serial.readStringUntil('\n');
     line.trim();
@@ -35,18 +40,18 @@ void loop() {
       u8g2.clearBuffer();
     }
      if (line.startsWith("THROTTLE:")){
-        currentThrottle = line.substring(16).toInt();
+        currentThrottle = line.substring(22).toInt();
         drawThrottle(40, 40, String(currentThrottle));
         u8g2.clearBuffer();
      }else if (line.startsWith("INFO:")){
-       // Serial.println("Show info");  // DEBUG
-        showMessage(line);
+        Serial.println("Show info");  // DEBUG
+        showInfoFromString(line);
      }else if (line.startsWith("ERROR:")){
-        //Serial.println("Show info");  // DEBUG
-        showMessage(line);
+        Serial.println("Show error");  // DEBUG
+        showInfoFromString(line);
      }else if (line.startsWith("MENU:")){
         //Serial.println("Show info");  // DEBUG
-        showMenuFromString(line);
+        showInfoFromString(line);
      }
 
     }
@@ -145,7 +150,7 @@ void drawThrottle(int pos_x,int pos_y,String message)
   delay(10);
 }
 
-void showMenuFromString(String menuStr) {
+void showInfoFromString(String menuStr) {
   u8g2.setFont(u8g2_font_5x8_tf);
   const int lineHeight = u8g2.getMaxCharHeight();
 
