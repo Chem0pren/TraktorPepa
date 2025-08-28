@@ -10,8 +10,23 @@ const int pinX = A3;
 const int BUTTONPIN  = 2;
 const int RELAYPIN = 12;
 
+//COMM 
+#define PKT_STATE 0x01   // State change (RUN, MENU, ERROR, INFO)
+#define PKT_DATA  0x02   // Live data (pedal, encoder, joystick)
+#define PKT_MENU  0x03   // Menu text (item1|item2|...)
+
+struct StatePacket {
+  byte stateId;
+};
+
+struct DataPacket {
+  float pedalPercent;
+  float encoderPercent;
+  float joystick;
+};
+//--
+
 //system display
-//int currentDisplay = 0; //0 - large number, 1 - menu, 2 - error 
 bool InitPhase = true;
 
 // error check
@@ -83,31 +98,28 @@ int8_t lastXDir = 0; // -1 left, 0 center, +1 right
 
 bool isMenuInit = false; 
 
-//nsigned long lastMoveTime = 0; // you already had this
-
-
 // Possible states
-enum SystemState {
-  STATE_INIT,
-  STATE_RUN,
-  STATE_ERROR,
-  STATE_MENU,
-  STATE_SAVING
+enum SystemState : byte {
+  STATE_INIT   = 0,
+  STATE_RUN    = 1,
+  STATE_ERROR  = 2,
+  STATE_MENU   = 3,
+  STATE_SAVING = 4
 };
 
 const char* getStateName(SystemState state) {
   switch (state) {
-    case STATE_INIT:  return "INIT";
-    case STATE_RUN:   return "RUN";
-    case STATE_ERROR: return "ERROR";
-    case STATE_MENU:  return "MENU";
-    case STATE_SAVING:  return "Saving";
+    case STATE_INIT:  return "STATE_INIT";
+    case STATE_RUN:   return "STATE_RUN";
+    case STATE_ERROR: return "STATE_ERROR";
+    case STATE_MENU:  return "STATE_MENU";
+    case STATE_SAVING:  return "STATE_SAVING";
     default:          return "UNKNOWN";
   }
 }
 
 SystemState currentState = STATE_INIT;
-SystemState previousState = STATE_INIT; // global or static variable
+SystemState previousState = (SystemState)-1;   // impossible value
 
 void setup() {
   pinMode(RELAYPIN, OUTPUT);
@@ -129,12 +141,9 @@ void setup() {
 
 void loop() {
 
-
- if (currentState != previousState) {
-       // Serial.print("System State: ");
-       // Serial.println(getStateName(currentState));
-        previousState = currentState;
-    }
+  if (currentState != previousState) {
+  sendState(currentState);
+  }
 
   // Always check buttons first (this can change currentState)
   buttonStateHandle();
@@ -223,6 +232,13 @@ void turnToAngle(float angle_to_move,int speed,float throttleJoystick)
   EncoderPercent = constrain(EncoderPercent,0,100);
   pedalPercent = constrain(pedalPercent,0,100);
 
+
+  if(currentState == STATE_RUN)
+  {
+    sendData(pedalPercent,EncoderPercent, throttleJoystick);
+  }
+
+  /*
   if (millis() - lastPrintTime >= printInterval && currentState == STATE_RUN) {
     lastPrintTime = millis();
 
@@ -237,7 +253,8 @@ void turnToAngle(float angle_to_move,int speed,float throttleJoystick)
     delay(10);
 
   }
-  
+  */
+
   if (stepDifference != 0) {
     // Set direction based on sign of difference
     digitalWrite(dirPin, stepDifference > 0 ? HIGH : LOW);
@@ -340,12 +357,12 @@ void buttonStateHandle()
       } 
       // Reset from ERROR
       else if (currentState == STATE_ERROR) {
-        currentState = STATE_INIT;
         resetSystem();
       } 
       // Save and exit only if already in MENU
       else if (currentState == STATE_MENU) {
         currentState = STATE_SAVING;
+        sendState(currentState); //need to notify display about change
         Serial.println("INFO:");
         Serial.println("Nastaveni ulozeno");
         saveToEEPROM();
@@ -542,4 +559,30 @@ void resetSystem()
     //InitPhase = true;
     isMenuInit = false;
     //currentDisplay = 0;
+}
+
+//COMM
+void sendPacket(byte type, const void* payload, byte length) {
+  byte checksum = type ^ length;
+  const byte* p = (const byte*)payload;
+  for (byte i = 0; i < length; i++) checksum ^= p[i];
+
+  Serial.write(0xAA);         // start
+  Serial.write(type);         // type
+  Serial.write(length);       // length
+  Serial.write(p, length);    // payload
+  Serial.write(checksum);     // checksum
+}
+
+void sendState(SystemState st) {
+  Serial.write(0xAA);               // start
+  Serial.write(PKT_STATE);          // type
+  Serial.write(1);                  // payload length
+  Serial.write((byte)st);           // payload (state as 1 byte)
+  Serial.write(PKT_STATE ^ 1 ^ (byte)st); // checksum
+}
+
+void sendData(float pedal, float encoder, float joy) {
+  DataPacket dp = { pedal, encoder, joy };
+  sendPacket(PKT_DATA, &dp, sizeof(dp));
 }

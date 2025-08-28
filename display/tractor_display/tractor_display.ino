@@ -3,6 +3,24 @@
 
 U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
 
+//COMM
+#define PKT_STATE 0x01   // State change (RUN, MENU, ERROR, INFO)
+#define PKT_DATA  0x02   // Live data (pedal, encoder, joystick)
+#define PKT_MENU  0x03   // Menu text (item1|item2|...)
+
+struct StatePacket { byte stateId; };
+struct DataPacket { float pedalPercent, encoderPercent, joystick; };
+
+enum ParseState { WAIT_START, WAIT_TYPE, WAIT_LEN, WAIT_PAYLOAD, WAIT_CHECKSUM };
+
+ParseState parseState = WAIT_START;
+byte pktType, pktLen, pktBuf[32], pktIndex;
+byte checksum;
+//
+
+
+
+
 const int maxLines = 6;  // Max lines we can display (7 * 8px = 56px + 8px for throttle)
 String menuLines[maxLines];
 int lineCount = 0;
@@ -14,6 +32,15 @@ bool hasReceivedData = false;
 
 int displayDrawState = 0;
 int previousDisplayDrawState = 0;
+
+enum SystemState : byte {
+  STATE_INIT   = 0,
+  STATE_RUN    = 1,
+  STATE_ERROR  = 2,
+  STATE_MENU   = 3,
+  STATE_SAVING = 4
+};
+
 
 void setup() {
   Serial.begin(19200);
@@ -30,7 +57,12 @@ void setup() {
 }
 
 void loop() {
-  
+  while (Serial.available()) {
+    parseByte(Serial.read());
+  }
+}
+
+/*  
   if (Serial.available()) {
     String line = Serial.readStringUntil('\n');
     line.trim();
@@ -61,8 +93,8 @@ void loop() {
 
      }
     */
-    }
-    delay(200);
+  //  }
+   // delay(200);
 
     /*
     if (line == "END") {
@@ -105,7 +137,7 @@ void loop() {
   previousDisplayDrawState = displayDrawState;
 */
 
-}
+//}
 
 
 void displayMenu() {
@@ -190,6 +222,98 @@ void showInfoFromString(String menuStr) {
       start = sepIndex + 1; // move past separator
     }
   } while (u8g2.nextPage());
-  
- 
+}
+
+//COMM
+void parseByte(byte b) {
+  switch (parseState) {
+    case WAIT_START:
+      if (b == 0xAA) {
+        parseState = WAIT_TYPE;
+      }
+      break;
+
+    case WAIT_TYPE:
+      pktType = b;
+      checksum = b;
+      parseState = WAIT_LEN;
+      break;
+
+    case WAIT_LEN:
+      pktLen = b;
+      pktIndex = 0;
+      checksum ^= b;
+      parseState = WAIT_PAYLOAD;
+      break;
+
+    case WAIT_PAYLOAD:
+      pktBuf[pktIndex++] = b;
+      checksum ^= b;
+      if (pktIndex >= pktLen) {
+        parseState = WAIT_CHECKSUM;
+      }
+      break;
+
+    case WAIT_CHECKSUM:
+      if (checksum == b) {
+        // ✅ Packet OK
+        if (pktType == PKT_STATE && pktLen == 1) {
+          SystemState st = (SystemState)pktBuf[0];
+          handleState(st);
+        }
+        else if (pktType == PKT_DATA && pktLen == sizeof(DataPacket)) {
+          DataPacket dp;
+          memcpy(&dp, pktBuf, sizeof(dp));
+          handleData(dp.pedalPercent, dp.encoderPercent, dp.joystick);
+        }
+      } else {
+        // ❌ checksum error → discard
+      }
+      parseState = WAIT_START;
+      break;
+  }
+}
+
+// Example handlers
+
+void handleState(SystemState st) {
+  switch (st) {
+    case STATE_INIT:
+      Serial.println("STATE: INIT");
+      break;
+
+    case STATE_RUN:
+      Serial.println("STATE: RUN");
+      // show big number
+      break;
+
+    case STATE_ERROR:
+      Serial.println("STATE: ERROR");
+      // show error msg
+      break;
+
+    case STATE_MENU:
+      Serial.println("STATE: MENU");
+      // show menu items
+      break;
+
+    case STATE_SAVING:
+      Serial.println("STATE: SAVING");
+      // show saving screen
+      break;
+  }
+}
+
+
+
+void handleData(float pedal, float encoder, float joy) {
+ // updateRunDisplay(pedal, encoder, joy);
+ /*
+  Serial.print("DATA -> Pedal: ");
+  Serial.print(pedal, 2);   // 2 decimal places
+  Serial.print(" | Encoder: ");
+  Serial.print(encoder, 2);
+  Serial.print(" | Joystick: ");
+  Serial.println(joy, 2);
+  */
 }
