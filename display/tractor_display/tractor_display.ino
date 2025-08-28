@@ -34,27 +34,35 @@ void loop() {
   if (Serial.available()) {
     String line = Serial.readStringUntil('\n');
     line.trim();
-
-    if(previousDisplayDrawState != displayDrawState){
-      u8g2.clearDisplay();
-      u8g2.clearBuffer();
-    }
+    Serial.println(line);  // DEBUG
+    //if(previousDisplayDrawState != displayDrawState){
+   // u8g2.clearDisplay();
+   // u8g2.clearBuffer();
+    //}
      if (line.startsWith("THROTTLE:")){
         currentThrottle = line.substring(22).toInt();
         drawThrottle(40, 40, String(currentThrottle));
-        u8g2.clearBuffer();
+        Serial.println("Show throttle");  // DEBUG
+       // u8g2.clearBuffer();
      }else if (line.startsWith("INFO:")){
+        u8g2.clearDisplay();
+        u8g2.clearBuffer();
         Serial.println("Show info");  // DEBUG
+        Serial.println(line);  // DEBUG
         showInfoFromString(line);
+     }
+    /*
      }else if (line.startsWith("ERROR:")){
         Serial.println("Show error");  // DEBUG
         showInfoFromString(line);
      }else if (line.startsWith("MENU:")){
         //Serial.println("Show info");  // DEBUG
         showInfoFromString(line);
-     }
 
+     }
+    */
     }
+    delay(200);
 
     /*
     if (line == "END") {
@@ -182,4 +190,6 @@ void showInfoFromString(String menuStr) {
       start = sepIndex + 1; // move past separator
     }
   } while (u8g2.nextPage());
+  
+ 
 }

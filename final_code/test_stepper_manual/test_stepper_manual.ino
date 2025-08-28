@@ -21,6 +21,9 @@ bool movementInProgress = false;
 const int angleTolerance = 10;       // Degrees tolerance
 float maxWaitTime = 3000; // Max wait in ms
 
+unsigned long lastPrintTime = 0;
+const unsigned long printInterval = 100; // ms
+
 //joystick button
 int buttonState = 0;  // variable for reading the pushbutton status
 unsigned long buttonHoldStart = 0;
@@ -128,8 +131,8 @@ void loop() {
 
 
  if (currentState != previousState) {
-        Serial.print("System State: ");
-        Serial.println(getStateName(currentState));
+       // Serial.print("System State: ");
+       // Serial.println(getStateName(currentState));
         previousState = currentState;
     }
 
@@ -220,16 +223,14 @@ void turnToAngle(float angle_to_move,int speed,float throttleJoystick)
   EncoderPercent = constrain(EncoderPercent,0,100);
   pedalPercent = constrain(pedalPercent,0,100);
 
-  if(currentState == STATE_RUN)
-  {
-    Serial.print("THROTTLE:");
-  //  Serial.print("PedalAngle: ");
-  //  Serial.print(angle_to_move);
-    Serial.print("PedalPercent:");
+  if (millis() - lastPrintTime >= printInterval && currentState == STATE_RUN) {
+    lastPrintTime = millis();
+
+    Serial.print("THROTTLE: PedalPercent=");
     Serial.print(pedalPercent);
-    Serial.print("|EncoderPercent:");
+    Serial.print(" | EncoderPercent=");
     Serial.print(EncoderPercent);
-    Serial.print("|ThrottleYostick:");
+    Serial.print(" | ThrottleJoystick=");
     Serial.println(throttleJoystick);
   }else{
     //compensate delay for stability
@@ -464,6 +465,7 @@ void InteractiveMenu()
 {
   if(!isMenuInit)
   {
+    delay(10);
     sendMenu();
     isMenuInit = true;
   }
@@ -517,7 +519,7 @@ void InteractiveMenu()
 
 void sendMenu() 
 {
-    Serial.print("MENU:");
+    Serial.print("INFO:");
     for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
       if (i == selectedItem) {
         Serial.print("> ");   // add cursor mark before selected item
