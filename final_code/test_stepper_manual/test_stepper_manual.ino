@@ -143,6 +143,7 @@ void loop() {
 
   if (currentState != previousState) {
   sendState(currentState);
+  previousState = currentState;  
   }
 
   // Always check buttons first (this can change currentState)
@@ -233,9 +234,12 @@ void turnToAngle(float angle_to_move,int speed,float throttleJoystick)
   pedalPercent = constrain(pedalPercent,0,100);
 
 
-  if(currentState == STATE_RUN)
-  {
-    sendData(pedalPercent,EncoderPercent, throttleJoystick);
+  static unsigned long lastDataMs = 0;
+  unsigned long now = millis();
+  if (currentState == STATE_RUN && (now - lastDataMs) >= 20) { // 50 Hz
+   // sendState(currentState);
+    sendData(pedalPercent, EncoderPercent, throttleJoystick);
+    lastDataMs = now;
   }
 
   /*
