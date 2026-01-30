@@ -141,10 +141,10 @@ void setup() {
 
 void loop() {
 
-  if (currentState != previousState) {
+ // if (currentState != previousState) {
   sendState(currentState);
-  previousState = currentState;  
-  }
+  //previousState = currentState;  
+ // }
 
   // Always check buttons first (this can change currentState)
   buttonStateHandle();
@@ -237,7 +237,7 @@ void turnToAngle(float angle_to_move,int speed,float throttleJoystick)
   static unsigned long lastDataMs = 0;
   unsigned long now = millis();
   if (currentState == STATE_RUN && (now - lastDataMs) >= 20) { // 50 Hz
-   // sendState(currentState);
+    sendState(currentState);
     sendData(pedalPercent, EncoderPercent, throttleJoystick);
     lastDataMs = now;
   }
@@ -540,21 +540,23 @@ void InteractiveMenu()
 
 void sendMenu() 
 {
-    Serial.print("INFO:");
-    for (int i = 0; i < sizeof(menu) / sizeof(menu[0]); i++) {
-      if (i == selectedItem) {
-        Serial.print("> ");   // add cursor mark before selected item
-      } else {
-        Serial.print("  ");   // indent others for alignment
-      }
-      Serial.print(menu[i].name);
-      Serial.print(":");
-      Serial.print(*menu[i].value, 4);
-      Serial.print(":");
-      //Serial.print("\n");
-      Serial.print("|");
+    // Build one big string like "Maximalni uhel:90|Offset Nula:-20|..."
+    String menuString = "";
+    for (int i = 0; i < menuLength; i++) {
+        if (i == selectedItem) {
+            menuString += "> ";  // cursor indicator
+        } else {
+            menuString += "  ";
+        }
+        menuString += menu[i].name;
+        menuString += ":";
+        menuString += String(*menu[i].value, 2); // two decimals
+        if (i < menuLength - 1) menuString += "|";
     }
-    Serial.println("END\n");
+
+    // Convert to C-string and send as packet
+    const char* payload = menuString.c_str();
+    sendPacket(PKT_MENU, payload, strlen(payload));
 }
 
 void resetSystem()
@@ -584,9 +586,11 @@ void sendState(SystemState st) {
   Serial.write(1);                  // payload length
   Serial.write((byte)st);           // payload (state as 1 byte)
   Serial.write(PKT_STATE ^ 1 ^ (byte)st); // checksum
+  Serial.flush();
 }
 
 void sendData(float pedal, float encoder, float joy) {
   DataPacket dp = { pedal, encoder, joy };
   sendPacket(PKT_DATA, &dp, sizeof(dp));
+  Serial.flush();
 }
