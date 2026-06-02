@@ -1,7 +1,9 @@
+#include <Wire.h>
+
 // ================== STEPPER ==================
-#define STEP_PIN 18
-#define DIR_PIN  16
-#define EN_PIN   27
+#define STEP_PIN 12
+#define DIR_PIN  14
+#define EN_PIN   34
 
 // ================== INPUT ==================
 #define TARGET_POT_PIN   34
@@ -16,10 +18,14 @@
 
 #define GEAR_RATIO 3.0f
 
+#define MT6701_ADDR   0x06 
+
 #define DEADZONE_DEG 0.5f
 
 #define MIN_STEP_DELAY 200
 #define MAX_STEP_DELAY 5000
+
+double setpoint, input, output;
 
 // ================== PID ==================
 float Kp = 1.5;
@@ -47,6 +53,8 @@ void setup() {
   pinMode(DIR_PIN, OUTPUT);
   pinMode(EN_PIN, OUTPUT);
 
+  Wire.begin();
+
   digitalWrite(EN_PIN, LOW);
 
   Serial.begin(115200);
@@ -63,12 +71,13 @@ void loop() {
   int rawTarget = readADC(TARGET_POT_PIN);
   rawTarget = constrain(rawTarget, ADC_MIN, ADC_MAX);
 
+
   float targetDeg =
     map(rawTarget, ADC_MIN, ADC_MAX, 0, 360);
 
   // -------- Encoder (0–360°) --------
-  int rawEnc = readADC(ENCODER_PIN);
-  rawEnc = constrain(rawEnc, ENC_MIN, ENC_MAX);
+  //int rawEnc = readADC(ENCODER_PIN);
+  int rawEnc = GetEncoderAngle();
 
   float positionDeg =
     map(rawEnc, ENC_MIN, ENC_MAX, 0, 360);
@@ -142,4 +151,19 @@ void debugPrint(float target, float pos,
 
   Serial.print(" | PID:");
   Serial.println(pid, 2);
+}
+
+float GetEncoderAngle() {
+  Wire.beginTransmission(MT6701_ADDR);
+  Wire.write(0x03);
+  if (Wire.endTransmission() != 0) return input; // Return last known if I2C fails
+
+  Wire.requestFrom(MT6701_ADDR, 2);
+  if (Wire.available() >= 2) {
+    uint16_t highByte = Wire.read();
+    uint16_t lowByte = Wire.read();
+    uint16_t rawValue = (highByte << 6) | (lowByte >> 2);
+    return (float)rawValue * 360.0 / 16384.0;
+  }
+  return input; 
 }
