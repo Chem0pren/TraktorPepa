@@ -119,7 +119,7 @@ void setup() {
   Serial.begin(19200);
   
   //load eeprom data
- // loadFromEEPROM();
+  loadFromEEPROM();
  // seekHome();
 
 }
